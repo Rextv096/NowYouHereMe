@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#EEF1EE" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="Now You Here Me" />
+<meta name="apple-mobile-web-app-title" content="Now You Hear Me" />
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
-<title>Now You Hear Me</title>
+<title>Now You Here Me</title>
 <style>
   :root{
     --paper:#EEF1EE; --card:#FFFFFF; --ink:#121413; --soft:#5C5F5C; --line:#E2E7E4;
@@ -82,10 +82,16 @@ let fbRef=null, applyingRemote=false, pushTimer=null, fbStatus="connecting";
 
 function fbInit(){
   try{
-    firebase.initializeApp(firebaseConfig);
+    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
     fbRef = firebase.database().ref("sessions/main");
+
+    // Firebase's own real connection signal — more reliable than inferring from reads/writes
+    firebase.database().ref(".info/connected").on("value",(snap)=>{
+      fbStatus = snap.val()===true ? "synced" : "connecting";
+      syncStatusUI();
+    });
+
     fbRef.on("value", (snap)=>{
-      fbStatus="synced";
       const val = snap.val();
       if(!val || !val.data){ syncStatusUI(); return; }
       const active = document.activeElement;
@@ -99,6 +105,14 @@ function fbInit(){
       }
       syncStatusUI();
     }, ()=>{ fbStatus="offline"; syncStatusUI(); });
+
+    // iOS (and most mobile browsers) silently kill the socket when the screen locks or
+    // the tab is backgrounded. Nothing fires automatically to tell us — so force a
+    // reconnect explicitly whenever the app becomes visible/focused again.
+    const reconnect=()=>{ try{ firebase.database().goOffline(); firebase.database().goOnline(); }catch(e){} };
+    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) reconnect(); });
+    window.addEventListener("focus", reconnect);
+    window.addEventListener("pageshow", reconnect);
   }catch(e){ fbStatus="offline"; syncStatusUI(); }
 }
 function scheduleSync(){
