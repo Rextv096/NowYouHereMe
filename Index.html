@@ -4,11 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#EEF1EE" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Now You Here Me" />
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
-<title>Now You Hear Me</title>
+<title>Now You Here Me</title>
 <style>
   :root{
     --paper:#EEF1EE; --card:#FFFFFF; --ink:#121413; --soft:#5C5F5C; --line:#E2E7E4;
@@ -224,14 +225,27 @@ function load(){
   return JSON.parse(JSON.stringify(DEFAULT));
 }
 function save(){ try{ localStorage.setItem("mixer_v2",JSON.stringify(S)); }catch(e){} scheduleSync(); }
+function toArr(x, len){
+  if(Array.isArray(x)) return x;
+  if(x && typeof x==="object"){
+    // Firebase can hand back a pruned {"0":..,"2":..} shape instead of a real array
+    // (legacy data from before payloads were string-wrapped) — rebuild it safely.
+    const n = len!=null ? len : (Math.max(-1,...Object.keys(x).map(Number).filter(k=>!isNaN(k)))+1);
+    const out=[]; for(let i=0;i<n;i++) out.push(x[i]);
+    return out;
+  }
+  return [];
+}
 function normalize(s){
-  const fix=(names,picks)=>{ while(picks.length<names.length) picks.push([]); picks.length=names.length; return picks; };
-  s.picksA=fix(s.namesA,s.picksA||[]); s.picksB=fix(s.namesB,s.picksB||[]);
+  s.namesA=toArr(s.namesA).map(v=>typeof v==="string"?v:"");
+  s.namesB=toArr(s.namesB).map(v=>typeof v==="string"?v:"");
+  const fix=(names,picks)=>{ picks=toArr(picks,names.length).map(a=>toArr(a)); while(picks.length<names.length) picks.push([]); picks.length=names.length; return picks; };
+  s.picksA=fix(s.namesA,s.picksA); s.picksB=fix(s.namesB,s.picksB);
   const nA=s.namesA.length, nB=s.namesB.length;
   s.picksA=s.picksA.map(a=>a.filter(j=>j<nB)); s.picksB=s.picksB.map(a=>a.filter(i=>i<nA));
-  s.rest=s.rest||{}; s.assign=s.assign||{};
+  s.rest=(s.rest&&typeof s.rest==="object")?s.rest:{}; s.assign=(s.assign&&typeof s.assign==="object")?s.assign:{};
   const N=Math.max(nA,nB), needLen=Math.max(N-1,0);
-  if(!Array.isArray(s.moverPattern)) s.moverPattern=[];
+  s.moverPattern=toArr(s.moverPattern,needLen).map(v=>v==='A'?'A':'B');
   while(s.moverPattern.length<needLen) s.moverPattern.push('B');
   s.moverPattern.length=needLen;
   return s;
