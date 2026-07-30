@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#EEF1EE" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="Now You Hear Me" />
+<meta name="apple-mobile-web-app-title" content="Now You Here Me" />
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
-<title>Now You Here Me</title>
+<title>Now You Hear Me</title>
 <style>
   :root{
     --paper:#EEF1EE; --card:#FFFFFF; --ink:#121413; --soft:#5C5F5C; --line:#E2E7E4;
@@ -78,7 +78,9 @@ const firebaseConfig = {
   messagingSenderId: "588533489553",
   appId: "1:588533489553:web:9f599c17abd4a2b9fd0430"
 };
-let fbRef=null, applyingRemote=false, pushTimer=null, fbStatus="connecting";
+let fbRef=null, applyingRemote=false, pushTimer=null, fbStatus="connecting", lastKeyAt=0;
+document.addEventListener("input", ()=>{ lastKeyAt=Date.now(); }, true);
+document.addEventListener("keydown", ()=>{ lastKeyAt=Date.now(); }, true);
 
 function fbInit(){
   try{
@@ -95,7 +97,11 @@ function fbInit(){
       const val = snap.val();
       if(!val || !val.data){ syncStatusUI(); return; }
       const active = document.activeElement;
-      const isTyping = active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName);
+      const focused = active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName);
+      // A field can stay "focused" indefinitely if someone types then just walks away
+      // (locks phone, switches app) without ever tapping elsewhere. Only treat this as
+      // a real do-not-disturb signal if a keystroke actually happened recently.
+      const isTyping = focused && (Date.now()-lastKeyAt < 4000);
       if(!isTyping){
         applyingRemote=true;
         const lang=S.lang, theme=S.theme;
@@ -108,9 +114,13 @@ function fbInit(){
 
     // iOS (and most mobile browsers) silently kill the socket when the screen locks or
     // the tab is backgrounded. Nothing fires automatically to tell us — so force a
-    // reconnect explicitly whenever the app becomes visible/focused again.
+    // reconnect explicitly whenever the app becomes visible/focused again. Also blur
+    // whatever's focused when backgrounding, as a second safety net against stuck focus.
     const reconnect=()=>{ try{ firebase.database().goOffline(); firebase.database().goOnline(); }catch(e){} };
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) reconnect(); });
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.hidden){ try{ document.activeElement && document.activeElement.blur(); }catch(e){} }
+      else reconnect();
+    });
     window.addEventListener("focus", reconnect);
     window.addEventListener("pageshow", reconnect);
   }catch(e){ fbStatus="offline"; syncStatusUI(); }
