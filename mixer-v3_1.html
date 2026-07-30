@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#EEF1EE" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Now You Here Me" />
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<title>Now You Here Me</title>
+<style>
+  :root{
+    --paper:#EEF1EE; --card:#FFFFFF; --ink:#121413; --soft:#5C5F5C; --line:#E2E7E4;
+    --a:#14A48E; --aSoft:#D9EEE9; --accent:#128E7A; --iconAccent:#14A48E; --b:#EB7961; --bSoft:#FBE7E1; --progress:#EB7961; --rest:#AEB6B2;
+    --disp:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  [data-theme="dark"]{
+    --paper:#121212; --card:#1C1F1E; --ink:#F3F9F8; --soft:#93A09F; --line:#2C302E;
+    --a:#14A48E; --aSoft:#15352F; --accent:#5DC4B3; --iconAccent:#36C3AB; --b:#EB7961; --bSoft:#38221C; --progress:#EB7961; --rest:#5E6E69;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--disp);transition:background .2s,color .2s;}
+  body{padding:14px 14px calc(30px + env(safe-area-inset-bottom));max-width:960px;margin:0 auto;}
+  button{font-family:inherit;cursor:pointer;color:inherit;}
+  input,select{font-family:inherit;font-size:16px;color:var(--ink);}
+  input::placeholder{color:var(--soft);opacity:.55;}
+  h1{margin:2px 0 0;font-size:clamp(22px,6vw,34px);font-weight:800;}
+  .eyebrow{font-family:var(--mono);font-size:11px;color:var(--soft);}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;}
+  .lbl{font-family:var(--mono);font-size:12px;color:var(--soft);margin-bottom:7px;}
+  .field{width:100%;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:11px 12px;color:var(--ink);}
+  .row{display:flex;align-items:center;gap:8px;}
+  .wrap{flex-wrap:wrap;}
+  .btn{border:none;border-radius:12px;padding:12px 20px;font-size:15px;font-weight:700;}
+  .btn-primary{background:var(--a);color:#fff;}
+  .btn-ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:600;padding:9px 14px;border-radius:10px;font-size:14px;}
+  .chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--soft);}
+  .chip.on{background:var(--a);color:#fff;border-color:var(--a);}
+  .step{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-size:18px;line-height:1;display:grid;place-items:center;}
+  .grid{display:grid;gap:10px;}
+  .steps{display:flex;gap:6px;overflow-x:auto;margin:14px 0 18px;padding-bottom:2px;}
+  .stepbtn{border:1px solid var(--line);background:var(--card);color:var(--soft);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;white-space:nowrap;}
+  .stepbtn.on{background:var(--a);color:#fff;border-color:var(--a);}
+  .tabs{display:flex;gap:6px;background:var(--line);padding:4px;border-radius:12px;margin-bottom:16px;overflow-x:auto;width:fit-content;max-width:100%;}
+  .tab{border:none;border-radius:9px;padding:8px 14px;font-size:14px;font-weight:600;white-space:nowrap;background:transparent;color:var(--soft);}
+  .tab.on{background:var(--card);color:var(--ink);}
+  .nav{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:24px;display:grid;place-items:center;}
+  .nav:disabled{opacity:.45;}
+  .dot{width:9px;height:9px;border-radius:3px;flex:0 0 auto;}
+  .slidein{animation:si .3s cubic-bezier(.2,.7,.2,1);}
+  @keyframes si{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion:reduce){.slidein{animation:none;}}
+  :focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  .muted{color:var(--soft);}
+  .seat{display:flex;align-items:center;gap:9px;}
+  .banner{border-radius:12px;padding:12px 14px;font-size:14px;font-weight:600;}
+  label.ck{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:15px;}
+  label.ck.dim{opacity:.5;}
+  input[type=checkbox]{width:18px;height:18px;accent-color:var(--iconAccent);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+
+/* =============================== i18n =============================== */
+const T = {
+  en:{
+    appName:"Now You Here Me",
+    steps:["Setup","Round 1","Picks","Matches","Round 2"],
+    eventName:"Event name", people:"people", shuffle:"Shuffle",
+    maxPicks:"Picks allowed per person", unlimited:"Unlimited",
+    picksHint:"How many people each person may choose. 0 = unlimited.",
+    back:"Back", next:"Next", rest:"Rest", table:"Table", round:"Round",
+    start:"Start", pause:"Pause", done:"Done", reset:"Reset", auto:"Auto-advance",
+    staysSeated:"stays seated", movesTable:"moves to the table shown each round",
+    live:"Live rounds", scheduleTab:"Full schedule", person:"By person",
+    crossNote:"Each person chooses from the other group.", noneYet:"— none —",
+    chosen:"chosen", withPeople:"people have picks",
+    matchedH:"Matched", attentionH:"Needs attention", noMutual:"No mutual match",
+    assign:"Assign a partner…", restStage:"Rest",
+    ready:"All set — ready for Round 2", suggest:"suggested",
+    miniNote:"Second round — matched pairs only.",
+    noMatches:"No matches yet. Add picks in the Picks step, or assign pairs here.",
+    withPerson:"with", restBreak:"Resting", restingStage:"Sitting out:",
+    waiting:"Waiting for their round", restingRound:"Resting this round",
+    staysAt:"stays at", rotates:"rotates each round", presets:"Presets",
+    of:"of", light:"Light", dark:"Dark",
+    resetAll:"Reset all", resetConfirm:"Tap again to confirm reset",
+    orderTab:"Order", quickFill:"Quick fill", swapEvery:"Swap every", roundsWord:"rounds",
+    allMoves:"always moves", stays:"stays seated", movesLbl:"moves",
+    movesThisRound:"moves this round", firstRoundSeated:"First round — everyone is already seated",
+    orderHint:"Tap a round to change who gets up and moves that round.",
+  },
+  ar:{
+    appName:"الآن تسمعني",
+    steps:["الإعداد","الجولة 1","الاختيارات","التطابق","الجولة 2"],
+    eventName:"اسم الفعالية", people:"أشخاص", shuffle:"خلط",
+    maxPicks:"عدد الاختيارات لكل شخص", unlimited:"غير محدود",
+    picksHint:"كم شخصًا يمكن لكل فرد اختياره. 0 = غير محدود.",
+    back:"رجوع", next:"التالي", rest:"راحة", table:"طاولة", round:"الجولة",
+    start:"ابدأ", pause:"إيقاف", done:"انتهى", reset:"إعادة", auto:"انتقال تلقائي",
+    staysSeated:"تبقى في مكانها", movesTable:"تنتقل إلى الطاولة الموضّحة كل جولة",
+    live:"الجولات المباشرة", scheduleTab:"الجدول الكامل", person:"حسب الشخص",
+    crossNote:"كل شخص يختار من المجموعة الأخرى.", noneYet:"— لا شيء —",
+    chosen:"مختار", withPeople:"شخص لديهم اختيارات",
+    matchedH:"متطابقون", attentionH:"يحتاجون إلى إجراء", noMutual:"لا يوجد تطابق متبادل",
+    assign:"تعيين شريك…", restStage:"راحة",
+    ready:"كل شيء جاهز — إلى الجولة 2", suggest:"مقترح",
+    miniNote:"الجولة الثانية — الأزواج المتطابقون فقط.",
+    noMatches:"لا توجد تطابقات بعد. أضف الاختيارات في خطوة الاختيارات، أو عيّن أزواجًا هنا.",
+    withPerson:"مع", restBreak:"مستريح", restingStage:"خارج المشاركة:",
+    waiting:"في انتظار جولتهم", restingRound:"مستريحون هذه الجولة",
+    staysAt:"تبقى في", rotates:"تنتقل كل جولة", presets:"جاهزة",
+    of:"من", light:"فاتح", dark:"داكن",
+    resetAll:"إعادة ضبط الكل", resetConfirm:"اضغط مجددًا للتأكيد",
+    orderTab:"الترتيب", quickFill:"تعبئة سريعة", swapEvery:"تبديل كل", roundsWord:"جولات",
+    allMoves:"تتنقّل دائمًا", stays:"تبقى في مكانها", movesLbl:"تتنقّل",
+    movesThisRound:"تتنقّل هذه الجولة", firstRoundSeated:"الجولة الأولى — الجميع جالسون بالفعل",
+    orderHint:"اضغط على أي جولة لتغيير من ينهض ويتنقّل في تلك الجولة.",
+  }
+};
+const t = (k)=> T[S.lang][k];
+const AR = ()=> S.lang==="ar";
+
+/* =============================== state =============================== */
+const DEFAULT = {
+  lang:"en", theme:"light",
+  title:"Meet Everyone", labelA:"Group A", labelB:"Group B",
+  namesA:Array(8).fill(""), namesB:Array(8).fill(""),
+  maxPicks:3,
+  picksA:Array(8).fill(0).map(()=>[]), picksB:Array(8).fill(0).map(()=>[]),
+  rest:{}, assign:{}, moverPattern:[],
+  stage1secs:180, stage2secs:120,
+};
+let S = load();
+let phase="setup", tab="live", round=0, prefIdx=0;
+let left=180, running=false, tick=null, ac=null, timerStage=null, auto=true, warned=false, resetArmed=false;
+
+function load(){
+  try{ const raw=localStorage.getItem("mixer_v2"); if(raw){ return normalize({...JSON.parse(JSON.stringify(DEFAULT)),...JSON.parse(raw)}); } }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT));
+}
+function save(){ try{ localStorage.setItem("mixer_v2",JSON.stringify(S)); }catch(e){} }
+function normalize(s){
+  const fix=(names,picks)=>{ while(picks.length<names.length) picks.push([]); picks.length=names.length; return picks; };
+  s.picksA=fix(s.namesA,s.picksA||[]); s.picksB=fix(s.namesB,s.picksB||[]);
+  const nA=s.namesA.length, nB=s.namesB.length;
+  s.picksA=s.picksA.map(a=>a.filter(j=>j<nB)); s.picksB=s.picksB.map(a=>a.filter(i=>i<nA));
+  s.rest=s.rest||{}; s.assign=s.assign||{};
+  const N=Math.max(nA,nB), needLen=Math.max(N-1,0);
+  if(!Array.isArray(s.moverPattern)) s.moverPattern=[];
+  while(s.moverPattern.length<needLen) s.moverPattern.push('B');
+  s.moverPattern.length=needLen;
+  return s;
+}
+
+/* =============================== helpers =============================== */
+const esc=(x)=> String(x).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const nm=(list,i,label)=> (list[i]&&list[i].trim())||`${label} ${i+1}`;
+const nameOf=(side,i)=> side==="A"? nm(S.namesA,i,S.labelA) : nm(S.namesB,i,S.labelB);
+const fmt=(s)=> String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+function shuffleArr(a){ a=[...a]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+const prevGlyph=()=> AR()?"›":"‹";
+const nextGlyph=()=> AR()?"‹":"›";
+
+/* =============================== matching =============================== */
+function computeMatches(){
+  const nA=S.namesA.length, nB=S.namesB.length;
+  const mutA=Array.from({length:nA},()=>[]);
+  const mutB=Array.from({length:nB},()=>[]);
+  for(let i=0;i<nA;i++) for(const j of S.picksA[i]){
+    if(S.picksB[j] && S.picksB[j].includes(i)){ mutA[i].push(j); mutB[j].push(i); }
+  }
+  const zero=[];
+  for(let i=0;i<nA;i++) if(mutA[i].length===0) zero.push("A"+i);
+  for(let j=0;j<nB;j++) if(mutB[j].length===0) zero.push("B"+j);
+  return {mutA,mutB,zero};
+}
+const keySide=(k)=> k[0];
+const keyIdx=(k)=> +k.slice(1);
+function isAssignTarget(key){ return Object.values(S.assign).includes(key); }
+function resolved(key){ return !!S.rest[key] || !!S.assign[key] || isAssignTarget(key); }
+
+function buildStage2(){
+  const {mutA,zero}=computeMatches();
+  const edges=[];
+  const seen=new Set();
+  for(let i=0;i<mutA.length;i++) for(const j of mutA[i]){
+    const id="A"+i+"-B"+j; if(seen.has(id))continue; seen.add(id); edges.push({a:i,b:j});
+  }
+  for(const key in S.assign){
+    const p=S.assign[key]; if(!p) continue;
+    let ai,bj;
+    if(keySide(key)==="A"){ ai=keyIdx(key); bj=keyIdx(p); } else { bj=keyIdx(key); ai=keyIdx(p); }
+    const id="A"+ai+"-B"+bj; if(seen.has(id))continue; seen.add(id); edges.push({a:ai,b:bj});
+  }
+  const active=edges.slice(); // every mutual or assigned pair must be seated
+  active.sort((x,y)=> x.a-y.a || x.b-y.b);
+  const used={};
+  for(const e of active){
+    const ka="A"+e.a, kb="B"+e.b; let c=0;
+    while((used[ka]&&used[ka].has(c))||(used[kb]&&used[kb].has(c))) c++;
+    e.color=c; (used[ka]=used[ka]||new Set()).add(c); (used[kb]=used[kb]||new Set()).add(c);
+  }
+  const nR=active.reduce((m,e)=>Math.max(m,e.color+1),0);
+  const rounds=[];
+  for(let c=0;c<nR;c++){
+    const pairs=active.filter(e=>e.color===c).map((e,idx)=>({table:idx+1,a:e.a,b:e.b}));
+    rounds.push(pairs);
+  }
+  const partSet=new Set(); active.forEach(e=>{ partSet.add("A"+e.a); partSet.add("B"+e.b); });
+  const restingKeys=Object.keys(S.rest).filter(k=>S.rest[k] && !partSet.has(k));
+  const roster=new Set([...partSet, ...restingKeys]);
+  const unresolved=zero.filter(k=>!resolved(k));
+  return {rounds,restingKeys,roster:[...roster],unresolved,zero,hasMatches:active.length>0,participants:[...partSet]};
+}
+
+/* =============================== actions =============================== */
+window.setText=(k,v)=>{ S[k]=v; save(); };            // silent (no re-render, keeps focus)
+window.setName=(side,i,v)=>{ (side==="A"?S.namesA:S.namesB)[i]=v; save(); };
+window.setCount=(side,d)=>{
+  const nk=side==="A"?"namesA":"namesB", pk=side==="A"?"picksA":"picksB";
+  let n=Math.max(2,Math.min(16,S[nk].length+d));
+  const names=S[nk].slice(0,n); while(names.length<n) names.push("");
+  const picks=S[pk].slice(0,n); while(picks.length<n) picks.push([]);
+  S[nk]=names; S[pk]=picks; normalize(S); save(); render();
+};
+window.shuffleSide=(side)=>{ const nk=side==="A"?"namesA":"namesB"; S[nk]=shuffleArr(S[nk]); save(); render(); };
+window.toggleMover=(i)=>{ S.moverPattern[i] = S.moverPattern[i]==='A' ? 'B' : 'A'; save(); render(); };
+window.fillMover=(K)=>{
+  const N=Math.max(S.namesA.length,S.namesB.length), len=Math.max(N-1,0);
+  const mp=[]; for(let x=0;x<len;x++){ mp.push(Math.floor(x/K)%2===0?'B':'A'); }
+  S.moverPattern=mp; save(); render();
+};
+window.resetMover=()=>{
+  const N=Math.max(S.namesA.length,S.namesB.length);
+  S.moverPattern=Array(Math.max(N-1,0)).fill('B'); save(); render();
+};
+window.setMax=(d)=>{ S.maxPicks=Math.max(0,Math.min(15,S.maxPicks+d)); normalize(S); save(); render(); };
+window.setLang=(l)=>{ S.lang=l; save(); render(); };
+window.setTheme=(th)=>{ S.theme=th; save(); render(); };
+window.resetAll=()=>{
+  if(!resetArmed){ resetArmed=true; render(); return; }
+  resetArmed=false;
+  const lang=S.lang, theme=S.theme;
+  S=JSON.parse(JSON.stringify(DEFAULT)); S.lang=lang; S.theme=theme;
+  phase="setup"; tab="live"; round=0; prefIdx=0; running=false; stopTick(); timerStage=null;
+  save(); render();
+};
+window.goStep=(p)=>{ resetArmed=false; phase=p; tab="live"; round=0; prefIdx=0; resetTimerStage(); render(); };
+window.setTab=(x)=>{ tab=x; render(); };
+window.go=(d,max)=>{ round=Math.max(0,Math.min(max-1,round+d)); resetTimerStage(true); render(); };
+window.prefMove=(d,total)=>{ prefIdx=(prefIdx+d+total)%total; render(); };
+window.prefJump=(v)=>{ prefIdx=+v; render(); };
+window.togglePick=(side,pi,oi,limit)=>{
+  const arr = side==="A"? S.picksA[pi] : S.picksB[pi];
+  const at=arr.indexOf(oi);
+  if(at>=0) arr.splice(at,1);
+  else { if(limit>0 && arr.length>=limit) return; arr.push(oi); }
+  save(); render();
+};
+window.toggleRest=(key,v)=>{ if(v) S.rest[key]=true; else delete S.rest[key]; save(); render(); };
+window.setAssign=(key,v)=>{ if(v) S.assign[key]=v; else delete S.assign[key]; save(); render(); };
+
+/* =============================== timer =============================== */
+function stageSecs(){ return phase==="stage2"? S.stage2secs : S.stage1secs; }
+function resetTimerStage(force){ if(force||timerStage!==phase){ stopTick(); left=stageSecs(); running=false; warned=false; timerStage=phase; } }
+function stopTick(){ if(tick){clearInterval(tick);tick=null;} }
+function armAudio(){ try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==="suspended")ac.resume(); }catch(e){} }
+function tone(freq,when,dur,vol){ const o=ac.createOscillator(),g=ac.createGain(); o.frequency.value=freq;o.connect(g);g.connect(ac.destination);
+  g.gain.setValueAtTime(.0001,ac.currentTime+when); g.gain.exponentialRampToValueAtTime(vol,ac.currentTime+when+.02); g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+when+dur);
+  o.start(ac.currentTime+when);o.stop(ac.currentTime+when+dur+.02); }
+function warnBeep(){ try{ armAudio(); tone(520,0,.12,.18);}catch(e){} }
+function endBeep(){ try{ armAudio(); [0,.18,.36].forEach(x=>tone(660,x,.15,.25));}catch(e){} }
+window.toggleRun=(max)=>{ if(left<=0) return; running=!running; if(running){ armAudio(); startTick(max);} else stopTick(); syncTimer(); };
+function startTick(max){ stopTick(); tick=setInterval(()=>{
+  left--; if(left===10 && !warned){warned=true;warnBeep();}
+  if(left<=0){ left=0; running=false; stopTick(); endBeep(); if(auto && round<max-1){ setTimeout(()=>window.go(1,max),700);} }
+  syncTimer();
+},1000); }
+window.setSecs=(d)=>{ const k=phase==="stage2"?"stage2secs":"stage1secs"; S[k]=Math.max(15,Math.min(1800,S[k]+d)); save(); resetTimerStage(true); render(); };
+window.setPreset=(v)=>{ const k=phase==="stage2"?"stage2secs":"stage1secs"; S[k]=v; save(); resetTimerStage(true); render(); };
+window.setAuto=(v)=>{ auto=v; };
+function syncTimer(){
+  const el=$("timer"); if(!el)return;
+  el.textContent=fmt(left); el.style.color=(left<=10&&running)?"var(--b)":"var(--ink)";
+  const bar=$("bar"); if(bar) bar.style.width=(stageSecs()>0?Math.max(0,left/stageSecs())*100:0)+"%";
+  const pb=$("playbtn"); if(pb){ pb.textContent=running?t("pause"):(left===0?t("done"):t("start")); pb.className="btn "+(running?"btn-ghost":"btn-primary"); }
+}
+const $=(id)=>document.getElementById(id);
+
+/* =============================== render =============================== */
+function render(){
+  document.documentElement.lang=S.lang;
+  document.documentElement.dir=AR()?"rtl":"ltr";
+  document.documentElement.dataset.theme=S.theme;
+  const app=$("app");
+  let body;
+  if(phase==="setup") body=setupView();
+  else if(phase==="stage1") body=runView(buildStage1(),"stage1");
+  else if(phase==="prefs") body=prefsView();
+  else if(phase==="matches") body=matchesView();
+  else body=runView(null,"stage2");
+  app.innerHTML=chrome()+body;
+}
+
+function chrome(){
+  const stepKeys=["setup","stage1","prefs","matches","stage2"];
+  const steps=t("steps").map((label,i)=>`<button class="stepbtn ${phase===stepKeys[i]?"on":""}" onclick="goStep('${stepKeys[i]}')">${esc(label)}</button>`).join("");
+  return `<div class="row wrap" style="justify-content:space-between;align-items:flex-start;gap:10px">
+    <div><h1>${esc(S.title||"—")}</h1></div>
+    <div class="row" style="gap:6px">
+      <div class="row" style="gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden">
+        <button class="chip" style="border:none;border-radius:0;${S.lang==="en"?"background:var(--a);color:#fff":""}" onclick="setLang('en')">EN</button>
+        <button class="chip" style="border:none;border-radius:0;${S.lang==="ar"?"background:var(--a);color:#fff":""}" onclick="setLang('ar')">ع</button>
+      </div>
+      <button class="chip" onclick="setTheme('${S.theme==="light"?"dark":"light"}')">${S.theme==="light"?"☾":"☀"}</button>
+    </div>
+  </div>
+  <div class="steps">${steps}</div>`;
+}
+
+/* ---------- setup ---------- */
+function setupView(){
+  return `<div class="slidein">
+    <div class="card" style="margin-bottom:14px">
+      <div class="lbl">${esc(t("eventName"))}</div>
+      <input class="field" value="${esc(S.title)}" oninput="setText('title',this.value)">
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+      ${sideEditor("A")}${sideEditor("B")}
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">${esc(t("maxPicks"))}</div>
+      <div class="row" style="gap:8px">
+        <button class="step" onclick="setMax(-1)">−</button>
+        <span style="font-family:var(--mono);min-width:96px;text-align:center">${S.maxPicks===0?esc(t("unlimited")):S.maxPicks}</span>
+        <button class="step" onclick="setMax(1)">+</button>
+        <span class="muted" style="font-size:13px;margin-inline-start:8px">${esc(t("picksHint"))}</span>
+      </div>
+    </div>
+    <div class="row wrap" style="margin-top:16px;gap:8px">
+      <button class="btn btn-primary" onclick="goStep('stage1')">${esc(t("steps")[1])} ${AR()?"←":"→"}</button>
+      <button class="btn-ghost" style="margin-inline-start:auto;color:${resetArmed?"#fff":"var(--b)"};background:${resetArmed?"var(--b)":"var(--card)"};border-color:var(--b)" onclick="resetAll()">${esc(resetArmed?t("resetConfirm"):t("resetAll"))}</button>
+    </div>
+  </div>`;
+}
+function sideEditor(side){
+  const color=side==="A"?"var(--a)":"var(--b)";
+  const label=side==="A"?S.labelA:S.labelB, names=side==="A"?S.namesA:S.namesB, lblKey=side==="A"?"labelA":"labelB";
+  return `<div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <span class="dot" style="width:12px;height:12px;border-radius:4px;background:${color}"></span>
+      <input class="field" style="font-weight:700;padding:7px 9px" value="${esc(label)}" oninput="setText('${lblKey}',this.value)">
+    </div>
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <div class="row" style="gap:6px">
+        <button class="step" onclick="setCount('${side}',-1)">−</button>
+        <span style="font-family:var(--mono);font-size:14px;min-width:78px;text-align:center">${names.length} ${esc(t("people"))}</span>
+        <button class="step" onclick="setCount('${side}',1)">+</button>
+      </div>
+      <button class="btn-ghost" style="padding:6px 10px;font-size:12px" onclick="shuffleSide('${side}')">⇄ ${esc(t("shuffle"))}</button>
+    </div>
+    <div class="grid" style="gap:7px">
+      ${names.map((v,i)=>`<div class="row"><span style="font-family:var(--mono);font-size:12px;color:${color};width:20px;text-align:center">${i+1}</span>
+        <input class="field" style="padding:9px 10px" value="${esc(v)}" oninput="setName('${side}',${i},this.value)" placeholder="${esc(label)} ${i+1}"></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ---------- stage 1 schedule ---------- */
+function buildStage1(){
+  const cA=S.namesA.length, cB=S.namesB.length, N=Math.max(cA,cB);
+  const A=Array.from({length:N},(_,i)=> i<cA?{name:nameOf("A",i),real:true}:{name:t("noneYet"),real:false});
+  const B=Array.from({length:N},(_,i)=> i<cB?{name:nameOf("B",i),real:true}:{name:t("noneYet"),real:false});
+  const mp = (S.moverPattern&&S.moverPattern.length===N-1) ? S.moverPattern : Array(Math.max(N-1,0)).fill('B');
+
+  // physical table index (0-based) of each A[i] / B[j]; round 0 = A[i] & B[i] share table i
+  let curA=Array.from({length:N},(_,i)=>i);
+  let curB=Array.from({length:N},(_,j)=>j);
+  const snap=()=>{
+    const byTable=Array.from({length:N},()=>({}));
+    curA.forEach((tb,i)=>byTable[tb].a=i);
+    curB.forEach((tb,j)=>byTable[tb].b=j);
+    return byTable.map((x,tb)=>({table:tb+1, a:A[x.a], b:B[x.b], rest:!A[x.a].real||!B[x.b].real}));
+  };
+  const rounds=[snap()];
+  for(let r=1;r<N;r++){
+    const mover = mp[r-1]||'B';
+    const prevA=[...curA], prevB=[...curB];
+    if(mover==='A'){
+      // B stays exactly where it was; A relocates to match this round's pairing
+      const newA=new Array(N);
+      for(let k=0;k<N;k++){ const j=(k+r)%N; newA[k]=prevB[j]; }
+      curA=newA;
+    } else {
+      // A stays exactly where it was; B relocates to match this round's pairing
+      const newB=new Array(N);
+      for(let k=0;k<N;k++){ const j=(k+r)%N; newB[j]=prevA[k]; }
+      curB=newB;
+    }
+    rounds.push(snap());
+  }
+  return {rounds,N,A,B,moverPattern:mp};
+}
+
+/* ---------- run view (stage1 & stage2) ---------- */
+function runView(s1,which){
+  let rounds, s2=null;
+  if(which==="stage1"){ rounds=s1.rounds; }
+  else { s2=buildStage2(); rounds=s2.rounds; if(!s2.hasMatches) return stage2Empty(s2); }
+  const tabsArr = which==="stage1"
+    ? [["live",t("live")],["schedule",t("scheduleTab")],["person",t("person")],["order",t("orderTab")]]
+    : [["live",t("live")],["schedule",t("scheduleTab")],["person",t("person")]];
+  if(round>=rounds.length) round=Math.max(0,rounds.length-1);
+  resetTimerStage();
+  const tabsHtml=`<div class="tabs">${tabsArr.map(([k,l])=>`<button class="tab ${tab===k?"on":""}" onclick="setTab('${k}')">${esc(l)}</button>`).join("")}</div>`;
+  let panel;
+  if(tab==="order"&&which==="stage1") panel=orderView(s1);
+  else if(tab==="schedule") panel=scheduleView(rounds,which);
+  else if(tab==="person") panel= which==="stage1"?personView(s1):stage2PersonView(s2);
+  else panel=liveView(rounds,which,s2,s1);
+  return `<div class="slidein">${which==="stage2"?`<div class="banner" style="background:var(--bSoft);color:var(--b);margin-bottom:14px">${esc(t("miniNote"))}</div>`:""}${tabsHtml}${panel}</div>`;
+}
+
+function orderView(s1){
+  const mp=s1.moverPattern;
+  const fillBtn=(K)=>`<button class="btn-ghost" onclick="fillMover(${K})">${esc(t("swapEvery"))} ${K}</button>`;
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="lbl">${esc(t("quickFill"))}</div>
+    <div class="row wrap" style="gap:8px">
+      ${[1,2,3,4].map(fillBtn).join("")}
+      <button class="btn-ghost" onclick="resetMover()">${esc(S.labelB)} ${esc(t("allMoves"))}</button>
+    </div>
+  </div>
+  <div class="row wrap muted" style="gap:8px;font-size:13px;margin:0 4px 12px">${esc(t("orderHint"))}</div>
+  <div class="row wrap" style="gap:8px;margin-bottom:12px">
+    <span class="chip" style="background:var(--a);color:#fff;border-color:var(--a)">${esc(S.labelA)}</span>
+    <span class="chip" style="background:var(--b);color:#fff;border-color:var(--b)">${esc(S.labelB)}</span>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px">
+    ${mp.map((m,i)=>{
+      const isA=m==='A';
+      return `<button class="focusable" onclick="toggleMover(${i})" style="border:1px solid ${isA?"var(--a)":"var(--b)"};border-radius:12px;padding:10px 6px;background:${isA?"var(--a)":"var(--b)"};color:#fff;display:flex;flex-direction:column;align-items:center;gap:2px">
+        <span style="font-size:10px;opacity:.85;font-family:var(--mono)">${esc(t("round"))} ${i+2}</span>
+        <span style="font-weight:800;font-size:13px">${esc(isA?S.labelA:S.labelB)}</span>
+      </button>`;
+    }).join("")}
+  </div>`;
+}
+
+function liveView(rounds,which,s2,s1){
+  const N=rounds.length, pairs=rounds[round]||[];
+  const presets=[60,120,180,300];
+  return `
+  <div class="card" style="margin-bottom:14px">
+    <div class="row wrap" style="justify-content:space-between;gap:12px">
+      <div class="row" style="gap:10px">
+        <button class="nav" onclick="go(-1,${N})" ${round===0?"disabled":""}>${prevGlyph()}</button>
+        <div style="text-align:center;min-width:92px">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--soft)">${esc(t("round"))}</div>
+          <div style="font-size:32px;font-weight:800;line-height:1">${round+1}<span class="muted" style="font-weight:600;font-size:19px">/${N}</span></div>
+        </div>
+        <button class="nav" onclick="go(1,${N})" ${round===N-1?"disabled":""}>${nextGlyph()}</button>
+      </div>
+      <div style="text-align:center">
+        <div id="timer" style="font-family:var(--mono);font-size:38px;font-weight:700;direction:ltr">${fmt(left)}</div>
+        <div style="height:4px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:2px"><div id="bar" style="height:100%;background:var(--progress);transition:width 1s linear;width:${(left/stageSecs())*100}%"></div></div>
+      </div>
+    </div>
+    <div class="row wrap" style="margin-top:14px;gap:8px">
+      <button id="playbtn" class="btn ${running?"btn-ghost":"btn-primary"}" style="padding:9px 20px;font-size:14px" onclick="toggleRun(${N})">${running?esc(t("pause")):(left===0?esc(t("done")):esc(t("start")))}</button>
+      <button class="btn-ghost" onclick="setSecs(0)">${esc(t("reset"))}</button>
+      <div class="row" style="gap:6px;margin-inline-start:4px">
+        <button class="step" onclick="setSecs(-15)">−</button>
+        <span style="font-family:var(--mono);font-size:13px;min-width:52px;text-align:center;direction:ltr">${fmt(stageSecs())}</span>
+        <button class="step" onclick="setSecs(15)">+</button>
+      </div>
+      <label class="row" style="gap:6px;font-size:13px;color:var(--soft);margin-inline-start:auto;cursor:pointer"><input type="checkbox" ${auto?"checked":""} onchange="setAuto(this.checked)"> ${esc(t("auto"))}</label>
+    </div>
+    <div class="row wrap" style="gap:6px;margin-top:10px">
+      <span class="muted" style="font-size:12px;font-family:var(--mono)">${esc(t("presets"))}:</span>
+      ${presets.map(p=>`<button class="chip ${stageSecs()===p?"on":""}" onclick="setPreset(${p})">${fmt(p)}</button>`).join("")}
+    </div>
+  </div>
+  ${which==="stage1"?moveBanner(s1):""}
+  <div class="grid slidein" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">
+    ${pairs.map(p=>{
+      const A=which==="stage1"?p.a:{name:nameOf("A",p.a),real:true};
+      const B=which==="stage1"?p.b:{name:nameOf("B",p.b),real:true};
+      const isRest=which==="stage1"&&p.rest;
+      return `<div class="card" style="padding:14px;opacity:${isRest?.6:1}">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px">
+          <span style="font-family:var(--mono);font-size:12px;color:var(--soft)">${esc(t("table"))} ${p.table}</span>
+          ${isRest?`<span style="font-family:var(--mono);font-size:10px;color:var(--rest)">${esc(t("rest"))}</span>`:""}
+        </div>${seat("var(--a)",A)}<div style="height:1px;background:var(--line);margin:9px 0"></div>${seat("var(--b)",B)}</div>`;
+    }).join("")}
+  </div>${which==="stage2"?stage2Aside(pairs,s2):""}`;
+}
+function moveBanner(s1){
+  if(!s1) return "";
+  if(round===0) return `<div class="banner" style="background:var(--card);border:1px solid var(--line);color:var(--soft);margin-bottom:12px">${esc(t("firstRoundSeated"))}</div>`;
+  const mover = s1.moverPattern[round-1]||'B';
+  const isA = mover==='A';
+  const name = isA? S.labelA : S.labelB;
+  return `<div class="banner" style="background:${isA?"var(--aSoft)":"var(--bSoft)"};color:${isA?"var(--accent)":"var(--b)"};margin-bottom:12px">
+    <b>${esc(name)}</b> ${esc(t("movesThisRound"))}</div>`;
+}
+function stage2Aside(pairs,s2){
+  if(!s2) return "";
+  const seated=new Set(); pairs.forEach(p=>{ seated.add("A"+p.a); seated.add("B"+p.b); });
+  const resting=(s2.roster||[]).filter(k=>!seated.has(k));
+  if(!resting.length) return "";
+  const chip=(k)=>`<span class="chip" style="font-weight:600"><span class="dot" style="display:inline-block;background:${k[0]==="A"?"var(--a)":"var(--b)"};margin-inline-end:6px"></span>${esc(nameOf(k[0],+k.slice(1)))}</span>`;
+  return `<div style="margin-top:16px"><div class="lbl">${esc(t("restingRound"))}</div><div class="row wrap" style="gap:6px">${resting.map(chip).join("")}</div></div>`;
+}
+function seat(color,person){
+  return `<div class="seat"><span class="dot" style="width:8px;height:8px;background:${person.real?color:"var(--rest)"}"></span>
+    <span style="font-size:15px;font-weight:${person.real?600:400};color:${person.real?"var(--ink)":"var(--rest)"}">${esc(person.name)}</span></div>`;
+}
+function scheduleView(rounds,which){
+  return `<div class="grid" style="gap:14px">${rounds.map((pairs,r)=>`<div class="card" style="padding:14px">
+    <div style="font-family:var(--mono);font-size:12px;color:var(--soft);margin-bottom:10px">${esc(t("round"))} ${r+1}</div>
+    <div class="grid" style="gap:6px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">
+      ${pairs.map(p=>{
+        const an=which==="stage1"?p.a.name:nameOf("A",p.a), bn=which==="stage1"?p.b.name:nameOf("B",p.b);
+        const ar=which==="stage1"?p.a.real:true, br=which==="stage1"?p.b.real:true;
+        return `<div class="row" style="font-size:14px;opacity:${(which==="stage1"&&p.rest)?.55:1}">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--soft);width:44px">${esc(t("table"))[0]||"T"}${p.table}</span>
+          <span style="color:${ar?"var(--a)":"var(--rest)"};font-weight:600">${esc(an)}</span><span class="muted">×</span>
+          <span style="color:${br?"var(--b)":"var(--rest)"};font-weight:600">${esc(bn)}</span></div>`;
+      }).join("")}
+    </div></div>`).join("")}</div>`;
+}
+function personView(s1){
+  const people=[];
+  s1.A.forEach((p,i)=>{ if(p.real) people.push({side:"A",idx:i,name:p.name}); });
+  s1.B.forEach((p,i)=>{ if(p.real) people.push({side:"B",idx:i,name:p.name}); });
+  return `<div class="grid" style="gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+    ${people.map(pr=>{
+      const isA=pr.side==="A";
+      const it=s1.rounds.map((pairs)=>{ const seat=pairs.find(p=> isA?p.a===s1.A[pr.idx]:p.b===s1.B[pr.idx]); const partner=isA?seat.b:seat.a; return {table:seat.table,partner}; });
+      return `<div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:10px 14px;background:${isA?"var(--aSoft)":"var(--bSoft)"};font-weight:700;color:${isA?"var(--accent)":"var(--b)"}">${esc(pr.name)}
+          <span class="muted" style="font-weight:500;font-size:12px">· ${isA?esc(t("staysAt"))+" "+esc(t("table"))+" "+(pr.idx+1):esc(t("rotates"))}</span></div>
+        ${it.map((x,r)=>`<div class="row" style="gap:10px;padding:8px 14px;border-top:1px solid var(--line);opacity:${x.partner.real?1:.5};font-size:14px">
+          <span class="muted" style="font-family:var(--mono);font-size:12px;width:26px">${r+1}</span>
+          <span style="font-family:var(--mono);font-size:12px;width:38px">${esc(t("table"))[0]||"T"}${x.table}</span>
+          <span>${x.partner.real?esc(x.partner.name):`<em class="muted">${esc(t("restBreak"))}</em>`}</span></div>`).join("")}
+      </div>`;
+    }).join("")}</div>`;
+}
+
+function stage2PersonView(s2){
+  const people=(s2.participants||[]).map(k=>({side:k[0],idx:+k.slice(1)}));
+  people.sort((a,b)=> a.side===b.side? a.idx-b.idx : (a.side==="A"?-1:1));
+  if(!people.length) return `<div class="card muted">${esc(t("noMatches"))}</div>`;
+  return `<div class="grid" style="gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+    ${people.map(pr=>{
+      const isA=pr.side==="A";
+      const rows=s2.rounds.map((pairs)=>{ const seat=pairs.find(p=> isA? p.a===pr.idx : p.b===pr.idx);
+        if(!seat) return {wait:true};
+        return {table:seat.table, partner: isA? nameOf("B",seat.b): nameOf("A",seat.a)}; });
+      return `<div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:10px 14px;background:${isA?"var(--aSoft)":"var(--bSoft)"};font-weight:700;color:${isA?"var(--accent)":"var(--b)"}">${esc(nameOf(pr.side,pr.idx))}</div>
+        ${rows.map((x,r)=>`<div class="row" style="gap:10px;padding:8px 14px;border-top:1px solid var(--line);font-size:14px;opacity:${x.wait?.5:1}">
+          <span class="muted" style="font-family:var(--mono);font-size:12px;width:26px">${r+1}</span>
+          ${x.wait?`<em class="muted">${esc(t("restBreak"))}</em>`:`<span style="font-family:var(--mono);font-size:12px;width:38px">${esc(t("table"))[0]||"T"}${x.table}</span><span>${esc(x.partner)}</span>`}
+        </div>`).join("")}
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+/* ---------- preferences ---------- */
+function prefsView(){
+  const people=[];
+  S.namesA.forEach((_,i)=>people.push({side:"A",idx:i}));
+  S.namesB.forEach((_,j)=>people.push({side:"B",idx:j}));
+  const total=people.length; if(prefIdx>=total) prefIdx=0;
+  const cur=people[prefIdx];
+  const isA=cur.side==="A";
+  const myPicks=isA?S.picksA[cur.idx]:S.picksB[cur.idx];
+  const others=isA?S.namesB:S.namesA;
+  const limit=S.maxPicks;
+  const atLimit=limit>0 && myPicks.length>=limit;
+  const withPicks=S.picksA.filter(a=>a.length).length+S.picksB.filter(a=>a.length).length;
+  return `<div class="slidein">
+    <div class="muted" style="font-size:13px;margin:0 2px 10px">${esc(t("crossNote"))} · ${withPicks} ${esc(t("withPeople"))}</div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <button class="nav" onclick="prefMove(-1,${total})">${prevGlyph()}</button>
+        <div style="text-align:center">
+          <select class="field" style="border:none;text-align:center;text-align-last:center;font-weight:800;font-size:18px;background:transparent" onchange="prefJump(this.value)">
+            ${people.map((p,idx)=>`<option value="${idx}" ${idx===prefIdx?"selected":""}>${esc(nameOf(p.side,p.idx))}</option>`).join("")}
+          </select>
+          <div class="muted" style="font-size:12px;font-family:var(--mono)">${prefIdx+1} ${esc(t("of"))} ${total} · ${myPicks.length}${limit>0?"/"+limit:""} ${esc(t("chosen"))}</div>
+        </div>
+        <button class="nav" onclick="prefMove(1,${total})">${nextGlyph()}</button>
+      </div>
+      <div class="grid" style="gap:8px">
+        ${others.map((_,oi)=>{
+          const on=myPicks.includes(oi);
+          const dim=!on&&atLimit;
+          return `<label class="ck ${dim?"dim":""}">
+            <input type="checkbox" ${on?"checked":""} ${dim?"disabled":""} onchange="togglePick('${cur.side}',${cur.idx},${oi},${limit})">
+            <span class="dot" style="background:${isA?"var(--b)":"var(--a)"}"></span>
+            <span>${esc(nameOf(isA?"B":"A",oi))}</span></label>`;
+        }).join("")}
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn btn-primary" onclick="goStep('matches')">${esc(t("steps")[3])} ${AR()?"←":"→"}</button></div>
+  </div>`;
+}
+
+/* ---------- matches ---------- */
+function matchesView(){
+  const {mutA,mutB,zero}=computeMatches();
+  const s2=buildStage2();
+  const matched=[];
+  S.namesA.forEach((_,i)=>{ if(mutA[i].length) matched.push({key:"A"+i,name:nameOf("A",i),side:"A",list:mutA[i].map(j=>nameOf("B",j))}); });
+  S.namesB.forEach((_,j)=>{ if(mutB[j].length) matched.push({key:"B"+j,name:nameOf("B",j),side:"B",list:mutB[j].map(i=>nameOf("A",i))}); });
+  const attention=zero.slice();
+  const ready=s2.unresolved.length===0;
+  return `<div class="slidein">
+    <div class="banner" style="background:${ready?"var(--aSoft)":"var(--bSoft)"};color:${ready?"var(--a)":"var(--b)"};margin-bottom:14px">
+      ${ready?esc(t("ready")):`${s2.unresolved.length} · ${esc(t("attentionH"))}`}</div>
+
+    ${matched.length?`<div class="lbl">${esc(t("matchedH"))}</div>
+    <div class="grid" style="gap:8px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));margin-bottom:16px">
+      ${matched.map(m=>`<div class="card" style="padding:12px">
+        <div style="font-weight:700;color:${m.side==="A"?"var(--accent)":"var(--b)"}">${esc(m.name)}</div>
+        <div class="muted" style="font-size:14px;margin-top:4px">${esc(t("withPerson"))} ${m.list.map(esc).join("، ")}</div>
+      </div>`).join("")}
+    </div>`:""}
+
+    ${attention.length?`<div class="lbl">${esc(t("attentionH"))}</div>
+    <div class="grid" style="gap:8px">
+      ${attention.map(key=>{
+        const isA=keySide(key)==="A", idx=keyIdx(key);
+        const others=isA?S.namesB:S.namesA;
+        const suggIdx = s2.zero.filter(k=>keySide(k)!==keySide(key)).map(keyIdx);
+        const resting=!!S.rest[key], assigned=S.assign[key]||"";
+        const targeted=isAssignTarget(key);
+        return `<div class="card" style="padding:12px">
+          <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div style="font-weight:700;color:${isA?"var(--accent)":"var(--b)"}">${esc(nameOf(isA?"A":"B",idx))}
+              ${targeted?`<span class="muted" style="font-weight:500;font-size:12px">· ${esc(t("withPerson"))} ✓</span>`:""}</div>
+            <label class="row" style="gap:6px;font-size:13px;color:var(--soft);cursor:pointer"><input type="checkbox" ${resting?"checked":""} onchange="toggleRest('${key}',this.checked)"> ${esc(t("restStage"))}</label>
+          </div>
+          ${resting?"":`<select class="field" style="margin-top:8px" onchange="setAssign('${key}',this.value)">
+            <option value="">${esc(t("assign"))}</option>
+            ${others.map((_,oi)=>{ const okey=(isA?"B":"A")+oi; const sug=suggIdx.includes(oi); return `<option value="${okey}" ${assigned===okey?"selected":""}>${esc(nameOf(isA?"B":"A",oi))}${sug?" · "+t("suggest"):""}</option>`; }).join("")}
+          </select>`}
+        </div>`;
+      }).join("")}
+    </div>`:""}
+
+    ${s2.restingKeys.length?`<div class="muted" style="font-size:13px;margin-top:14px">${esc(t("restingStage"))} ${s2.restingKeys.map(k=>esc(nameOf(keySide(k),keyIdx(k)))).join("، ")}</div>`:""}
+
+    <div class="row" style="margin-top:16px"><button class="btn btn-primary" onclick="goStep('stage2')">${esc(t("steps")[4])} ${AR()?"←":"→"}</button></div>
+  </div>`;
+}
+
+function stage2Empty(s2){
+  return `<div class="slidein"><div class="card" style="text-align:center;padding:26px">
+    <div style="font-size:15px;color:var(--soft)">${esc(t("noMatches"))}</div>
+    <div class="row" style="justify-content:center;margin-top:14px;gap:8px">
+      <button class="btn-ghost" onclick="goStep('prefs')">${esc(t("steps")[2])}</button>
+      <button class="btn-ghost" onclick="goStep('matches')">${esc(t("steps")[3])}</button>
+    </div>
+  </div></div>`;
+}
+
+render();
+</script>
+</body>
+</html>
