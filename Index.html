@@ -96,6 +96,9 @@ function fbInit(){
     fbRef.on("value", (snap)=>{
       const val = snap.val();
       if(!val || !val.data){ syncStatusUI(); return; }
+      let incoming;
+      try{ incoming = typeof val.data==="string" ? JSON.parse(val.data) : val.data; }
+      catch(e){ syncStatusUI(); return; }
       const active = document.activeElement;
       const focused = active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName);
       // A field can stay "focused" indefinitely if someone types then just walks away
@@ -105,7 +108,7 @@ function fbInit(){
       if(!isTyping){
         applyingRemote=true;
         const lang=S.lang, theme=S.theme;
-        S = normalize({...JSON.parse(JSON.stringify(DEFAULT)), ...val.data, lang, theme});
+        S = normalize({...JSON.parse(JSON.stringify(DEFAULT)), ...incoming, lang, theme});
         render();
         applyingRemote=false;
       }
@@ -130,7 +133,7 @@ function scheduleSync(){
   if(pushTimer) clearTimeout(pushTimer);
   pushTimer=setTimeout(()=>{
     const {lang, theme, ...syncable} = S;
-    fbRef.set({data:syncable, ts:Date.now()}).catch(()=>{ fbStatus="offline"; syncStatusUI(); });
+    fbRef.set({data: JSON.stringify(syncable), ts:Date.now()}).catch(()=>{ fbStatus="offline"; syncStatusUI(); });
   }, 400);
 }
 function syncStatusUI(){
