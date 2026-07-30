@@ -427,14 +427,20 @@ function runView(s1,which){
   return `<div class="slidein">${which==="stage2"?`<div class="banner" style="background:var(--bSoft);color:var(--b);margin-bottom:14px">${esc(t("miniNote"))}</div>`:""}${tabsHtml}${panel}</div>`;
 }
 
+function fillPattern(K,len){ const mp=[]; for(let x=0;x<len;x++){ mp.push(Math.floor(x/K)%2===0?'B':'A'); } return mp; }
 function orderView(s1){
   const mp=s1.moverPattern;
-  const fillBtn=(K)=>`<button class="btn-ghost" onclick="fillMover(${K})">${esc(t("swapEvery"))} ${K}</button>`;
+  const isActiveFill=(K)=> JSON.stringify(fillPattern(K,mp.length))===JSON.stringify(mp);
+  const isAllB = mp.every(m=>m==='B');
+  const fillBtn=(K)=>{
+    const on=isActiveFill(K);
+    return `<button class="chip ${on?"on":""}" onclick="fillMover(${K})">${esc(t("swapEvery"))} ${K}</button>`;
+  };
   return `<div class="card" style="margin-bottom:14px">
     <div class="lbl">${esc(t("quickFill"))}</div>
     <div class="row wrap" style="gap:8px">
       ${[1,2,3,4].map(fillBtn).join("")}
-      <button class="btn-ghost" onclick="resetMover()">${esc(S.labelB)} ${esc(t("allMoves"))}</button>
+      <button class="chip ${isAllB?"on":""}" onclick="resetMover()">${esc(S.labelB)} ${esc(t("allMoves"))}</button>
     </div>
   </div>
   <div class="row wrap muted" style="gap:8px;font-size:13px;margin:0 4px 12px">${esc(t("orderHint"))}</div>
