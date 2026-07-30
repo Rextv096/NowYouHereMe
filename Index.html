@@ -63,8 +63,60 @@
 </head>
 <body>
 <div id="app"></div>
+<script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-database-compat.js"></script>
 <script>
 "use strict";
+
+/* =============================== live sync (2 hosts) =============================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyClf_oNJGZeUYaX8e4JqXT4qccJqE2ZRBM",
+  authDomain: "nyhme0.firebaseapp.com",
+  databaseURL: "https://nyhme0-default-rtdb.firebaseio.com",
+  projectId: "nyhme0",
+  storageBucket: "nyhme0.firebasestorage.app",
+  messagingSenderId: "588533489553",
+  appId: "1:588533489553:web:9f599c17abd4a2b9fd0430"
+};
+let fbRef=null, applyingRemote=false, pushTimer=null, fbStatus="connecting";
+
+function fbInit(){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    fbRef = firebase.database().ref("sessions/main");
+    fbRef.on("value", (snap)=>{
+      fbStatus="synced";
+      const val = snap.val();
+      if(!val || !val.data){ syncStatusUI(); return; }
+      const active = document.activeElement;
+      const isTyping = active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName);
+      if(!isTyping){
+        applyingRemote=true;
+        const lang=S.lang, theme=S.theme;
+        S = normalize({...JSON.parse(JSON.stringify(DEFAULT)), ...val.data, lang, theme});
+        render();
+        applyingRemote=false;
+      }
+      syncStatusUI();
+    }, ()=>{ fbStatus="offline"; syncStatusUI(); });
+  }catch(e){ fbStatus="offline"; syncStatusUI(); }
+}
+function scheduleSync(){
+  if(applyingRemote || !fbRef) return;
+  if(pushTimer) clearTimeout(pushTimer);
+  pushTimer=setTimeout(()=>{
+    const {lang, theme, ...syncable} = S;
+    fbRef.set({data:syncable, ts:Date.now()}).catch(()=>{ fbStatus="offline"; syncStatusUI(); });
+  }, 400);
+}
+function syncStatusUI(){
+  const el=document.getElementById("syncDot");
+  if(!el) return;
+  const map={connecting:["var(--rest)","…"], synced:["var(--a)","✓"], offline:["var(--b)","!"]};
+  const [color]=map[fbStatus]||map.offline;
+  el.style.background=color;
+}
+
 
 /* =============================== i18n =============================== */
 const T = {
@@ -144,7 +196,7 @@ function load(){
   try{ const raw=localStorage.getItem("mixer_v2"); if(raw){ return normalize({...JSON.parse(JSON.stringify(DEFAULT)),...JSON.parse(raw)}); } }catch(e){}
   return JSON.parse(JSON.stringify(DEFAULT));
 }
-function save(){ try{ localStorage.setItem("mixer_v2",JSON.stringify(S)); }catch(e){} }
+function save(){ try{ localStorage.setItem("mixer_v2",JSON.stringify(S)); }catch(e){} scheduleSync(); }
 function normalize(s){
   const fix=(names,picks)=>{ while(picks.length<names.length) picks.push([]); picks.length=names.length; return picks; };
   s.picksA=fix(s.namesA,s.picksA||[]); s.picksB=fix(s.namesB,s.picksB||[]);
@@ -314,6 +366,7 @@ function chrome(){
   return `<div class="row wrap" style="justify-content:space-between;align-items:flex-start;gap:10px">
     <div><h1>${esc(S.title||"—")}</h1></div>
     <div class="row" style="gap:6px">
+      <span id="syncDot" title="sync status" style="width:9px;height:9px;border-radius:50%;background:var(--rest);flex:0 0 auto"></span>
       <div class="row" style="gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden">
         <button class="chip" style="border:none;border-radius:0;${S.lang==="en"?"background:var(--a);color:#fff":""}" onclick="setLang('en')">EN</button>
         <button class="chip" style="border:none;border-radius:0;${S.lang==="ar"?"background:var(--a);color:#fff":""}" onclick="setLang('ar')">ع</button>
@@ -683,6 +736,7 @@ function stage2Empty(s2){
 }
 
 render();
+fbInit();
 </script>
 </body>
 </html>
