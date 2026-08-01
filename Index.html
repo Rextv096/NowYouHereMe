@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#EEF1EE" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="Now You Here Me" />
+<meta name="apple-mobile-web-app-title" content="Now You Hear Me" />
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
 <title>Now You Here Me</title>
@@ -150,7 +150,7 @@ function syncStatusUI(){
 const T = {
   en:{
     appName:"Now You Here Me",
-    steps:["Setup","Round 1","Picks","Matches","Round 2"],
+    steps:["Setup","Round 1","Picks","Matches","Round 2","Final Picks","Final Match"],
     eventName:"Event name", people:"people", shuffle:"Shuffle",
     maxPicks:"Picks allowed per person", unlimited:"Unlimited",
     picksHint:"How many people each person may choose. 0 = unlimited.",
@@ -174,10 +174,12 @@ const T = {
     allMoves:"always moves", stays:"stays seated", movesLbl:"moves",
     movesThisRound:"moves this round", firstRoundSeated:"First round — everyone is already seated",
     orderHint:"Tap a round to change who gets up and moves that round.",
+    finalPicksHint:"Pick the one person from Round 2 you'd want to continue with.",
+    finalMatchedH:"final matches", goToFinal:"Final Picks",
   },
   ar:{
     appName:"الآن تسمعني",
-    steps:["الإعداد","الجولة 1","الاختيارات","التطابق","الجولة 2"],
+    steps:["الإعداد","الجولة 1","الاختيارات","التطابق","الجولة 2","الاختيار النهائي","التطابق النهائي"],
     eventName:"اسم الفعالية", people:"أشخاص", shuffle:"خلط",
     maxPicks:"عدد الاختيارات لكل شخص", unlimited:"غير محدود",
     picksHint:"كم شخصًا يمكن لكل فرد اختياره. 0 = غير محدود.",
@@ -201,6 +203,8 @@ const T = {
     allMoves:"تتنقّل دائمًا", stays:"تبقى في مكانها", movesLbl:"تتنقّل",
     movesThisRound:"تتنقّل هذه الجولة", firstRoundSeated:"الجولة الأولى — الجميع جالسون بالفعل",
     orderHint:"اضغط على أي جولة لتغيير من ينهض ويتنقّل في تلك الجولة.",
+    finalPicksHint:"اختر الشخص الوحيد من الجولة الثانية الذي تودّ الاستمرار معه.",
+    finalMatchedH:"تطابقات نهائية", goToFinal:"الاختيار النهائي",
   }
 };
 const t = (k)=> T[S.lang][k];
@@ -214,6 +218,7 @@ const DEFAULT = {
   maxPicks:3,
   picksA:Array(8).fill(0).map(()=>[]), picksB:Array(8).fill(0).map(()=>[]),
   rest:{}, assign:{}, moverPattern:[],
+  finalPicksA:[], finalPicksB:[],
   stage1secs:180, stage2secs:120,
 };
 let S = load();
@@ -248,6 +253,9 @@ function normalize(s){
   s.moverPattern=toArr(s.moverPattern,needLen).map(v=>v==='A'?'A':'B');
   while(s.moverPattern.length<needLen) s.moverPattern.push('B');
   s.moverPattern.length=needLen;
+  const fixSingle=(arr,len,otherLen)=>{ arr=toArr(arr,len); const out=[]; for(let i=0;i<len;i++){ const v=arr[i]; out.push((typeof v==="number"&&v>=0&&v<otherLen)?v:null); } return out; };
+  s.finalPicksA=fixSingle(s.finalPicksA,nA,nB);
+  s.finalPicksB=fixSingle(s.finalPicksB,nB,nA);
   return s;
 }
 
@@ -349,6 +357,13 @@ window.setTab=(x)=>{ tab=x; render(); };
 window.go=(d,max)=>{ round=Math.max(0,Math.min(max-1,round+d)); resetTimerStage(true); render(); };
 window.prefMove=(d,total)=>{ prefIdx=(prefIdx+d+total)%total; render(); };
 window.prefJump=(v)=>{ prefIdx=+v; render(); };
+window.finalPrefMove=(d,total)=>{ prefIdx=(prefIdx+d+total)%total; render(); };
+window.finalPrefJump=(v)=>{ prefIdx=+v; render(); };
+window.toggleFinalPick=(side,idx,oi)=>{
+  const key = side==="A" ? "finalPicksA" : "finalPicksB";
+  S[key][idx] = (S[key][idx]===oi) ? null : oi;
+  save(); render();
+};
 window.togglePick=(side,pi,oi,limit)=>{
   const arr = side==="A"? S.picksA[pi] : S.picksB[pi];
   const at=arr.indexOf(oi);
@@ -397,12 +412,14 @@ function render(){
   else if(phase==="stage1") body=runView(buildStage1(),"stage1");
   else if(phase==="prefs") body=prefsView();
   else if(phase==="matches") body=matchesView();
-  else body=runView(null,"stage2");
+  else if(phase==="stage2") body=runView(null,"stage2");
+  else if(phase==="finalPicks") body=finalPicksView();
+  else body=finalMatchView();
   app.innerHTML=chrome()+body;
 }
 
 function chrome(){
-  const stepKeys=["setup","stage1","prefs","matches","stage2"];
+  const stepKeys=["setup","stage1","prefs","matches","stage2","finalPicks","finalMatch"];
   const steps=t("steps").map((label,i)=>`<button class="stepbtn ${phase===stepKeys[i]?"on":""}" onclick="goStep('${stepKeys[i]}')">${esc(label)}</button>`).join("");
   return `<div class="row wrap" style="justify-content:space-between;align-items:flex-start;gap:10px">
     <div><h1>${esc(S.title||"—")}</h1></div>
@@ -518,7 +535,8 @@ function runView(s1,which){
   else if(tab==="schedule") panel=scheduleView(rounds,which);
   else if(tab==="person") panel= which==="stage1"?personView(s1):stage2PersonView(s2);
   else panel=liveView(rounds,which,s2,s1);
-  return `<div class="slidein">${which==="stage2"?`<div class="banner" style="background:var(--bSoft);color:var(--b);margin-bottom:14px">${esc(t("miniNote"))}</div>`:""}${tabsHtml}${panel}</div>`;
+  return `<div class="slidein">${which==="stage2"?`<div class="banner" style="background:var(--bSoft);color:var(--b);margin-bottom:14px">${esc(t("miniNote"))}</div>
+    <div class="row" style="margin-bottom:14px"><button class="btn-ghost" onclick="goStep('finalPicks')">${esc(t("goToFinal"))} ${AR()?"←":"→"}</button></div>`:""}${tabsHtml}${panel}</div>`;
 }
 
 function fillPattern(K,len){ const mp=[]; for(let x=0;x<len;x++){ mp.push(Math.floor(x/K)%2===0?'B':'A'); } return mp; }
@@ -653,6 +671,77 @@ function personView(s1){
           <span>${x.partner.real?esc(x.partner.name):`<em class="muted">${esc(t("restBreak"))}</em>`}</span></div>`).join("")}
       </div>`;
     }).join("")}</div>`;
+}
+
+/* ---------- final selection (after Round 2) ---------- */
+function stage2Partners(s2, side, idx){
+  const out=[];
+  s2.rounds.forEach(rd=> rd.forEach(p=>{
+    if(side==="A" && p.a===idx) out.push(p.b);
+    if(side==="B" && p.b===idx) out.push(p.a);
+  }));
+  return [...new Set(out)];
+}
+function computeFinalMatches(){
+  const nA=S.namesA.length, nB=S.namesB.length;
+  const matches=[]; const matchedA={}, matchedB={};
+  for(let i=0;i<nA;i++){
+    const j=S.finalPicksA[i];
+    if(j==null) continue;
+    if(S.finalPicksB[j]===i){ matches.push({a:i,b:j}); matchedA[i]=true; matchedB[j]=true; }
+  }
+  return {matches, matchedA, matchedB};
+}
+
+function finalPicksView(){
+  const s2=buildStage2();
+  const people=[];
+  S.namesA.forEach((_,i)=>{ const p=stage2Partners(s2,"A",i); if(p.length) people.push({side:"A",idx:i,partners:p}); });
+  S.namesB.forEach((_,j)=>{ const p=stage2Partners(s2,"B",j); if(p.length) people.push({side:"B",idx:j,partners:p}); });
+  if(!people.length) return `<div class="slidein"><div class="card muted" style="padding:20px;text-align:center">${esc(t("noneYet"))}</div></div>`;
+  const total=people.length; if(prefIdx>=total) prefIdx=0;
+  const cur=people[prefIdx];
+  const isA=cur.side==="A";
+  const myPick = isA? S.finalPicksA[cur.idx] : S.finalPicksB[cur.idx];
+  return `<div class="slidein">
+    <div class="muted" style="font-size:13px;margin:0 2px 10px">${esc(t("finalPicksHint"))}</div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <button class="nav" onclick="finalPrefMove(-1,${total})">${prevGlyph()}</button>
+        <div style="text-align:center">
+          <select class="field" style="border:none;text-align:center;text-align-last:center;font-weight:800;font-size:18px;background:transparent" onchange="finalPrefJump(this.value)">
+            ${people.map((p,idx)=>`<option value="${idx}" ${idx===prefIdx?"selected":""}>${esc(nameOf(p.side,p.idx))}</option>`).join("")}
+          </select>
+          <div class="muted" style="font-size:12px;font-family:var(--mono)">${prefIdx+1} ${esc(t("of"))} ${total}</div>
+        </div>
+        <button class="nav" onclick="finalPrefMove(1,${total})">${nextGlyph()}</button>
+      </div>
+      <div class="grid" style="gap:8px">
+        ${cur.partners.map(oi=>{
+          const on = myPick===oi;
+          return `<label class="ck">
+            <input type="checkbox" ${on?"checked":""} onchange="toggleFinalPick('${cur.side}',${cur.idx},${oi})">
+            <span class="dot" style="background:${isA?"var(--b)":"var(--a)"}"></span>
+            <span>${esc(nameOf(isA?"B":"A",oi))}</span></label>`;
+        }).join("")}
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn btn-primary" onclick="goStep('finalMatch')">${esc(t("steps")[6])} ${AR()?"←":"→"}</button></div>
+  </div>`;
+}
+
+function finalMatchView(){
+  const {matches}=computeFinalMatches();
+  return `<div class="slidein">
+    <div class="banner" style="background:var(--aSoft);color:var(--accent);margin-bottom:14px">${matches.length} ${esc(t("finalMatchedH"))}</div>
+    ${matches.length? `<div class="grid" style="gap:8px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+      ${matches.map(m=>`<div class="card" style="padding:16px;text-align:center">
+        <div style="font-weight:800;color:var(--accent)">${esc(nameOf("A",m.a))}</div>
+        <div class="muted" style="font-size:13px;margin:4px 0">♥</div>
+        <div style="font-weight:800;color:var(--b)">${esc(nameOf("B",m.b))}</div>
+      </div>`).join("")}
+    </div>` : `<div class="card muted" style="padding:20px;text-align:center">${esc(t("noneYet"))}</div>`}
+  </div>`;
 }
 
 function stage2PersonView(s2){
