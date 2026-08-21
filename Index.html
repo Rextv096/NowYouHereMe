@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#EEF1EE" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="Now You Hear Me" />
+<meta name="apple-mobile-web-app-title" content="Speak So I Can See You" />
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
-<title>Now You Here Me</title>
+<title>Speak So I Can See You</title>
 <style>
   :root{
     --paper:#EEF1EE; --card:#FFFFFF; --ink:#121413; --soft:#5C5F5C; --line:#E2E7E4;
@@ -80,13 +80,16 @@ const firebaseConfig = {
   appId: "1:588533489553:web:9f599c17abd4a2b9fd0430"
 };
 let fbRef=null, applyingRemote=false, pushTimer=null, fbStatus="connecting", lastKeyAt=0;
+let roomCode=null, adminMode=false, adminSessions=[], armedDeletes=new Set();
 document.addEventListener("input", ()=>{ lastKeyAt=Date.now(); }, true);
 document.addEventListener("keydown", ()=>{ lastKeyAt=Date.now(); }, true);
 
+function ensureApp(){ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig); }
+
 function fbInit(){
   try{
-    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    fbRef = firebase.database().ref("sessions/main");
+    ensureApp();
+    fbRef = firebase.database().ref("sessions/"+roomCode);
 
     // Firebase's own real connection signal — more reliable than inferring from reads/writes
     firebase.database().ref(".info/connected").on("value",(snap)=>{
@@ -145,11 +148,49 @@ function syncStatusUI(){
   el.style.background=color;
 }
 
+/* ---------- admin: view/delete rooms across the whole project ---------- */
+function adminInit(){
+  try{
+    ensureApp();
+    firebase.database().ref("sessions").on("value",(snap)=>{
+      const val = snap.val() || {};
+      adminSessions = Object.keys(val).map(code=>{
+        let title=null;
+        try{ const d = typeof val[code].data==="string" ? JSON.parse(val[code].data) : val[code].data; title = d && d.title; }catch(e){}
+        return { code, ts: val[code].ts||0, title };
+      }).sort((a,b)=> b.ts-a.ts);
+      render();
+    });
+  }catch(e){}
+}
+window.deleteSession=(code)=>{
+  if(!armedDeletes.has(code)){ armedDeletes.add(code); render(); return; }
+  armedDeletes.delete(code);
+  try{ firebase.database().ref("sessions/"+code).remove(); }catch(e){}
+};
+window.enterRoom=()=>{
+  const el=document.getElementById("roomInput");
+  const v=(el&&el.value||"").trim();
+  if(!v) return;
+  try{ localStorage.setItem("mixer_room", v); }catch(e){}
+  if(v==="__manage__"){ adminMode=true; render(); adminInit(); return; }
+  roomCode=v; render(); fbInit();
+};
+window.changeRoom=()=>{
+  try{ if(fbRef){ fbRef.off(); } firebase.database().ref("sessions").off(); firebase.database().ref(".info/connected").off(); }catch(e){}
+  try{ localStorage.removeItem("mixer_room"); }catch(e){}
+  fbRef=null; roomCode=null; adminMode=false; armedDeletes=new Set();
+  const lang=S.lang, theme=S.theme;
+  S = JSON.parse(JSON.stringify(DEFAULT)); S.lang=lang; S.theme=theme;
+  try{ localStorage.setItem("mixer_v2",JSON.stringify(S)); }catch(e){}
+  phase="setup"; render();
+};
+
 
 /* =============================== i18n =============================== */
 const T = {
   en:{
-    appName:"Now You Here Me",
+    appName:"Speak So I Can See You",
     steps:["Setup","Round 1","Picks","Matches","Round 2","Final Picks","Final Match"],
     eventName:"Event name", people:"people", shuffle:"Shuffle",
     maxPicks:"Picks allowed per person", unlimited:"Unlimited",
@@ -170,6 +211,10 @@ const T = {
     staysAt:"stays at", rotates:"rotates each round", presets:"Presets",
     of:"of", light:"Light", dark:"Dark",
     resetAll:"Reset all", resetConfirm:"Tap again to confirm reset",
+    roomTitle:"Enter room code", roomHint:"This is like a room key, not a password — whatever you type opens (or creates) that room.",
+    roomPlaceholder:"e.g. friday-event", roomContinue:"Continue",
+    roomLabel:"Room", roomChange:"change",
+    adminTitle:"Active rooms", noSessions:"No rooms yet.", deleteSession:"Delete",
     orderTab:"Order", quickFill:"Quick fill", swapEvery:"Swap every", roundsWord:"rounds",
     allMoves:"always moves", stays:"stays seated", movesLbl:"moves",
     movesThisRound:"moves this round", firstRoundSeated:"First round — everyone is already seated",
@@ -178,7 +223,7 @@ const T = {
     finalMatchedH:"final matches", goToFinal:"Final Picks",
   },
   ar:{
-    appName:"الآن تسمعني",
+    appName:"تكلم حتى أراك",
     steps:["الإعداد","الجولة 1","الاختيارات","التطابق","الجولة 2","الاختيار النهائي","التطابق النهائي"],
     eventName:"اسم الفعالية", people:"أشخاص", shuffle:"خلط",
     maxPicks:"عدد الاختيارات لكل شخص", unlimited:"غير محدود",
@@ -199,6 +244,10 @@ const T = {
     staysAt:"تبقى في", rotates:"تنتقل كل جولة", presets:"جاهزة",
     of:"من", light:"فاتح", dark:"داكن",
     resetAll:"إعادة ضبط الكل", resetConfirm:"اضغط مجددًا للتأكيد",
+    roomTitle:"أدخل رمز الغرفة", roomHint:"هذا أشبه بمفتاح غرفة وليس كلمة مرور — ما تكتبه يفتح (أو ينشئ) تلك الغرفة.",
+    roomPlaceholder:"مثال: لقاء-الجمعة", roomContinue:"متابعة",
+    roomLabel:"الغرفة", roomChange:"تغيير",
+    adminTitle:"الغرف النشطة", noSessions:"لا توجد غرف بعد.", deleteSession:"حذف",
     orderTab:"الترتيب", quickFill:"تعبئة سريعة", swapEvery:"تبديل كل", roundsWord:"جولات",
     allMoves:"تتنقّل دائمًا", stays:"تبقى في مكانها", movesLbl:"تتنقّل",
     movesThisRound:"تتنقّل هذه الجولة", firstRoundSeated:"الجولة الأولى — الجميع جالسون بالفعل",
@@ -407,6 +456,10 @@ function render(){
   document.documentElement.dir=AR()?"rtl":"ltr";
   document.documentElement.dataset.theme=S.theme;
   const app=$("app");
+
+  if(adminMode){ app.innerHTML = miniChrome()+adminView(); return; }
+  if(!roomCode){ app.innerHTML = miniChrome()+roomGateView(); return; }
+
   let body;
   if(phase==="setup") body=setupView();
   else if(phase==="stage1") body=runView(buildStage1(),"stage1");
@@ -418,11 +471,58 @@ function render(){
   app.innerHTML=chrome()+body;
 }
 
+function miniChrome(){
+  return `<div class="row wrap" style="justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+    <div><h1>${esc(t("appName"))}</h1></div>
+    <div class="row" style="gap:6px">
+      <div class="row" style="gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden">
+        <button class="chip" style="border:none;border-radius:0;${S.lang==="en"?"background:var(--a);color:#fff":""}" onclick="setLang('en')">EN</button>
+        <button class="chip" style="border:none;border-radius:0;${S.lang==="ar"?"background:var(--a);color:#fff":""}" onclick="setLang('ar')">ع</button>
+      </div>
+      <button class="chip" onclick="setTheme('${S.theme==="light"?"dark":"light"}')">${S.theme==="light"?"☾":"☀"}</button>
+    </div>
+  </div>`;
+}
+
+function roomGateView(){
+  return `<div class="slidein">
+    <div class="card" style="max-width:380px;margin:40px auto;text-align:center">
+      <div class="lbl" style="margin-bottom:8px">${esc(t("roomTitle"))}</div>
+      <input id="roomInput" class="field" placeholder="${esc(t("roomPlaceholder"))}" style="text-align:center"
+        onkeydown="if(event.key==='Enter')enterRoom()">
+      <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="enterRoom()">${esc(t("roomContinue"))}</button>
+      <div class="muted" style="font-size:12px;margin-top:12px;line-height:1.5">${esc(t("roomHint"))}</div>
+    </div>
+  </div>`;
+}
+
+function adminView(){
+  const rows = adminSessions.map(s=>{
+    const armed = armedDeletes.has(s.code);
+    return `<div class="card" style="padding:12px;margin-bottom:8px">
+      <div class="row" style="justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-weight:700">${esc(s.code)}</div>
+          <div class="muted" style="font-size:12px">${esc(s.title||t("noneYet"))}${s.ts?" · "+new Date(s.ts).toLocaleString():""}</div>
+        </div>
+        <button class="btn-ghost" style="color:${armed?"#fff":"var(--b)"};background:${armed?"var(--b)":"var(--card)"};border-color:var(--b);flex:0 0 auto" onclick="deleteSession('${s.code}')">${armed?esc(t("resetConfirm")):esc(t("deleteSession"))}</button>
+      </div>
+    </div>`;
+  }).join("");
+  return `<div class="slidein">
+    <div class="lbl">${esc(t("adminTitle"))}</div>
+    ${adminSessions.length? rows : `<div class="card muted" style="padding:20px;text-align:center">${esc(t("noSessions"))}</div>`}
+    <div class="row" style="margin-top:16px"><button class="btn-ghost" onclick="changeRoom()">${esc(t("roomChange"))}</button></div>
+  </div>`;
+}
+
 function chrome(){
   const stepKeys=["setup","stage1","prefs","matches","stage2","finalPicks","finalMatch"];
   const steps=t("steps").map((label,i)=>`<button class="stepbtn ${phase===stepKeys[i]?"on":""}" onclick="goStep('${stepKeys[i]}')">${esc(label)}</button>`).join("");
   return `<div class="row wrap" style="justify-content:space-between;align-items:flex-start;gap:10px">
-    <div><h1>${esc(S.title||"—")}</h1></div>
+    <div><h1>${esc(S.title||"—")}</h1>
+      <div class="muted" style="font-size:11px;font-family:var(--mono)">${esc(t("roomLabel"))}: ${esc(roomCode)} · <a href="#" onclick="changeRoom();return false;" style="color:var(--accent)">${esc(t("roomChange"))}</a></div>
+    </div>
     <div class="row" style="gap:6px">
       <span id="syncDot" title="sync status" style="width:9px;height:9px;border-radius:50%;background:var(--rest);flex:0 0 auto"></span>
       <div class="row" style="gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden">
@@ -865,8 +965,13 @@ function stage2Empty(s2){
   </div></div>`;
 }
 
-render();
-fbInit();
+(function boot(){
+  let saved=null;
+  try{ saved=localStorage.getItem("mixer_room"); }catch(e){}
+  if(saved==="__manage__"){ adminMode=true; render(); adminInit(); }
+  else if(saved){ roomCode=saved; render(); fbInit(); }
+  else { render(); }
+})();
 </script>
 </body>
 </html>
