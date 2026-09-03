@@ -201,7 +201,7 @@ const T = {
     live:"Live rounds", scheduleTab:"Full schedule", person:"By person",
     crossNote:"Each person chooses from the other group.", noneYet:"— none —",
     chosen:"chosen", withPeople:"people have picks",
-    matchedH:"Matched", attentionH:"Needs attention", noMutual:"No mutual match", needsMore:"needs {n} more",
+    matchedH:"Matched", attentionH:"Needs attention", noMutual:"No mutual match", needsMore:"needs {n} more", choiceN:"Choice {n}",
     assign:"Assign a partner…", restStage:"Rest",
     ready:"All set — ready for Round 2", suggest:"suggested",
     miniNote:"Second round — matched pairs only.",
@@ -234,7 +234,7 @@ const T = {
     live:"الجولات المباشرة", scheduleTab:"الجدول الكامل", person:"حسب الشخص",
     crossNote:"كل شخص يختار من المجموعة الأخرى.", noneYet:"— لا شيء —",
     chosen:"مختار", withPeople:"شخص لديهم اختيارات",
-    matchedH:"متطابقون", attentionH:"يحتاجون إلى إجراء", noMutual:"لا يوجد تطابق متبادل", needsMore:"يحتاج {n} أكثر",
+    matchedH:"متطابقون", attentionH:"يحتاجون إلى إجراء", noMutual:"لا يوجد تطابق متبادل", needsMore:"يحتاج {n} أكثر", choiceN:"الاختيار {n}",
     assign:"تعيين شريك…", restStage:"راحة",
     ready:"كل شيء جاهز — إلى الجولة 2", suggest:"مقترح",
     miniNote:"الجولة الثانية — الأزواج المتطابقون فقط.",
@@ -293,10 +293,25 @@ function toArr(x, len){
 function normalize(s){
   s.namesA=toArr(s.namesA).map(v=>typeof v==="string"?v:"");
   s.namesB=toArr(s.namesB).map(v=>typeof v==="string"?v:"");
-  const fix=(names,picks)=>{ picks=toArr(picks,names.length).map(a=>toArr(a)); while(picks.length<names.length) picks.push([]); picks.length=names.length; return picks; };
-  s.picksA=fix(s.namesA,s.picksA); s.picksB=fix(s.namesB,s.picksB);
   const nA=s.namesA.length, nB=s.namesB.length;
-  s.picksA=s.picksA.map(a=>a.filter(j=>j<nB)); s.picksB=s.picksB.map(a=>a.filter(i=>i<nA));
+  const target = s.maxPicks>0 ? s.maxPicks : null;
+  const fixPicks=(names,picks,otherLen)=>{
+    picks=toArr(picks,names.length).map(a=>toArr(a));
+    while(picks.length<names.length) picks.push([]);
+    picks.length=names.length;
+    return picks.map(arr=>{
+      let cleaned = arr.map(v=> (typeof v==="number"&&v>=0&&v<otherLen)?v:null);
+      const seen=new Set();
+      cleaned = cleaned.map(v=>{ if(v==null) return null; if(seen.has(v)) return null; seen.add(v); return v; });
+      if(target!=null){
+        const out=cleaned.slice(0,target);
+        while(out.length<target) out.push(null);
+        return out;
+      }
+      return cleaned.filter(v=>v!=null);
+    });
+  };
+  s.picksA=fixPicks(s.namesA,s.picksA,nB); s.picksB=fixPicks(s.namesB,s.picksB,nA);
   s.rest=(s.rest&&typeof s.rest==="object"&&!Array.isArray(s.rest))?s.rest:{};
   {
     const raw = Array.isArray(s.assign) ? s.assign : toArr(s.assign);
@@ -347,6 +362,7 @@ function computeMatches(){
   }
   // Priority 1: mutual picks — non-negotiable, always included
   for(let i=0;i<nA;i++) for(const j of S.picksA[i]){
+    if(j==null) continue;
     if(S.picksB[j] && S.picksB[j].includes(i)) add(i,j);
   }
   if(isFinite(target)){
@@ -477,6 +493,12 @@ window.togglePick=(side,pi,oi,limit)=>{
   const at=arr.indexOf(oi);
   if(at>=0) arr.splice(at,1);
   else { if(limit>0 && arr.length>=limit) return; arr.push(oi); }
+  save(); render();
+};
+window.setPickRank=(side,pi,rank,value)=>{
+  const arr = side==="A"? S.picksA[pi] : S.picksB[pi];
+  const oi = value===""? null : +value;
+  arr[rank] = oi;
   save(); render();
 };
 window.toggleRest=(key,v)=>{ if(v) S.rest[key]=true; else delete S.rest[key]; save(); render(); };
@@ -949,8 +971,9 @@ function prefsView(){
   const myPicks=isA?S.picksA[cur.idx]:S.picksB[cur.idx];
   const others=isA?S.namesB:S.namesA;
   const limit=S.maxPicks;
-  const atLimit=limit>0 && myPicks.length>=limit;
-  const withPicks=S.picksA.filter(a=>a.length).length+S.picksB.filter(a=>a.length).length;
+  const chosenCount = myPicks.filter(v=>v!=null).length;
+  const withPicks=S.picksA.filter(a=>a.some(v=>v!=null)).length+S.picksB.filter(a=>a.some(v=>v!=null)).length;
+  const ranked = limit>0;
   return `<div class="slidein">
     <div class="muted" style="font-size:13px;margin:0 2px 10px">${esc(t("crossNote"))} · ${withPicks} ${esc(t("withPeople"))}</div>
     <div class="card">
@@ -960,20 +983,30 @@ function prefsView(){
           <select class="field" style="border:none;text-align:center;text-align-last:center;font-weight:800;font-size:18px;background:transparent" onchange="prefJump(this.value)">
             ${people.map((p,idx)=>`<option value="${idx}" ${idx===prefIdx?"selected":""}>${esc(nameOf(p.side,p.idx))}</option>`).join("")}
           </select>
-          <div class="muted" style="font-size:12px;font-family:var(--mono)">${prefIdx+1} ${esc(t("of"))} ${total} · ${myPicks.length}${limit>0?"/"+limit:""} ${esc(t("chosen"))}</div>
+          <div class="muted" style="font-size:12px;font-family:var(--mono)">${prefIdx+1} ${esc(t("of"))} ${total} · ${chosenCount}${limit>0?"/"+limit:""} ${esc(t("chosen"))}</div>
         </div>
         <button class="nav" onclick="prefMove(1,${total})">${nextGlyph()}</button>
       </div>
-      <div class="grid" style="gap:8px">
+      ${ranked ? `<div class="grid" style="gap:10px">
+        ${myPicks.map((v,rank)=>{
+          const takenElsewhere = new Set(myPicks.filter((x,r)=>r!==rank&&x!=null));
+          return `<div>
+            <div class="lbl" style="margin-bottom:4px">${esc(t("choiceN")).replace("{n}",rank+1)}</div>
+            <select class="field" onchange="setPickRank('${cur.side}',${cur.idx},${rank},this.value)">
+              <option value="">${esc(t("noneYet"))}</option>
+              ${others.map((_,oi)=>{ if(takenElsewhere.has(oi)) return ""; return `<option value="${oi}" ${v===oi?"selected":""}>${esc(nameOf(isA?"B":"A",oi))}</option>`; }).join("")}
+            </select>
+          </div>`;
+        }).join("")}
+      </div>` : `<div class="grid" style="gap:8px">
         ${others.map((_,oi)=>{
           const on=myPicks.includes(oi);
-          const dim=!on&&atLimit;
-          return `<label class="ck ${dim?"dim":""}">
-            <input type="checkbox" ${on?"checked":""} ${dim?"disabled":""} onchange="togglePick('${cur.side}',${cur.idx},${oi},${limit})">
+          return `<label class="ck">
+            <input type="checkbox" ${on?"checked":""} onchange="togglePick('${cur.side}',${cur.idx},${oi},0)">
             <span class="dot" style="background:${isA?"var(--b)":"var(--a)"}"></span>
             <span>${esc(nameOf(isA?"B":"A",oi))}</span></label>`;
         }).join("")}
-      </div>
+      </div>`}
     </div>
     <div class="row" style="margin-top:14px"><button class="btn btn-primary" onclick="goStep('matches')">${esc(t("steps")[3])} ${AR()?"←":"→"}</button></div>
   </div>`;
