@@ -201,7 +201,7 @@ const T = {
     live:"Live rounds", scheduleTab:"Full schedule", person:"By person",
     crossNote:"Each person chooses from the other group.", noneYet:"— none —",
     chosen:"chosen", withPeople:"people have picks",
-    matchedH:"Matched", attentionH:"Needs attention", noMutual:"No mutual match",
+    matchedH:"Matched", attentionH:"Needs attention", noMutual:"No mutual match", needsMore:"needs {n} more",
     assign:"Assign a partner…", restStage:"Rest",
     ready:"All set — ready for Round 2", suggest:"suggested",
     miniNote:"Second round — matched pairs only.",
@@ -234,7 +234,7 @@ const T = {
     live:"الجولات المباشرة", scheduleTab:"الجدول الكامل", person:"حسب الشخص",
     crossNote:"كل شخص يختار من المجموعة الأخرى.", noneYet:"— لا شيء —",
     chosen:"مختار", withPeople:"شخص لديهم اختيارات",
-    matchedH:"متطابقون", attentionH:"يحتاجون إلى إجراء", noMutual:"لا يوجد تطابق متبادل",
+    matchedH:"متطابقون", attentionH:"يحتاجون إلى إجراء", noMutual:"لا يوجد تطابق متبادل", needsMore:"يحتاج {n} أكثر",
     assign:"تعيين شريك…", restStage:"راحة",
     ready:"كل شيء جاهز — إلى الجولة 2", suggest:"مقترح",
     miniNote:"الجولة الثانية — الأزواج المتطابقون فقط.",
@@ -266,7 +266,7 @@ const DEFAULT = {
   namesA:Array(8).fill(""), namesB:Array(8).fill(""),
   maxPicks:3,
   picksA:Array(8).fill(0).map(()=>[]), picksB:Array(8).fill(0).map(()=>[]),
-  rest:{}, assign:{}, moverPattern:[],
+  rest:{}, assign:[], moverPattern:[],
   finalPicksA:[], finalPicksB:[],
   stage1secs:180, stage2secs:120,
 };
@@ -297,7 +297,19 @@ function normalize(s){
   s.picksA=fix(s.namesA,s.picksA); s.picksB=fix(s.namesB,s.picksB);
   const nA=s.namesA.length, nB=s.namesB.length;
   s.picksA=s.picksA.map(a=>a.filter(j=>j<nB)); s.picksB=s.picksB.map(a=>a.filter(i=>i<nA));
-  s.rest=(s.rest&&typeof s.rest==="object")?s.rest:{}; s.assign=(s.assign&&typeof s.assign==="object")?s.assign:{};
+  s.rest=(s.rest&&typeof s.rest==="object"&&!Array.isArray(s.rest))?s.rest:{};
+  {
+    const raw = Array.isArray(s.assign) ? s.assign : toArr(s.assign);
+    const seenPairs=new Set(); const clean=[];
+    raw.forEach(e=>{
+      if(!e || typeof e!=="object") return;
+      const a=e.a, b=e.b;
+      if(typeof a!=="number"||typeof b!=="number"||a<0||a>=nA||b<0||b>=nB) return;
+      const id=a+"-"+b; if(seenPairs.has(id)) return; seenPairs.add(id);
+      clean.push({a,b});
+    });
+    s.assign=clean;
+  }
   const N=Math.max(nA,nB), needLen=Math.max(N-1,0);
   s.moverPattern=toArr(s.moverPattern,needLen).map(v=>v==='A'?'A':'B');
   while(s.moverPattern.length<needLen) s.moverPattern.push('B');
@@ -320,33 +332,80 @@ const nextGlyph=()=> AR()?"‹":"›";
 /* =============================== matching =============================== */
 function computeMatches(){
   const nA=S.namesA.length, nB=S.namesB.length;
+  const target = S.maxPicks>0 ? S.maxPicks : Infinity;
+  const cntA=Array(nA).fill(0), cntB=Array(nB).fill(0);
+  const seen=new Set();
   const mutA=Array.from({length:nA},()=>[]);
   const mutB=Array.from({length:nB},()=>[]);
-  for(let i=0;i<nA;i++) for(const j of S.picksA[i]){
-    if(S.picksB[j] && S.picksB[j].includes(i)){ mutA[i].push(j); mutB[j].push(i); }
+  function add(i,j){
+    if(typeof i!=="number"||typeof j!=="number"||i<0||i>=nA||j<0||j>=nB) return false;
+    const k=i+"-"+j;
+    if(seen.has(k)) return false;
+    if(cntA[i]>=target || cntB[j]>=target) return false;
+    seen.add(k); mutA[i].push(j); mutB[j].push(i); cntA[i]++; cntB[j]++;
+    return true;
   }
-  const zero=[];
-  for(let i=0;i<nA;i++) if(mutA[i].length===0) zero.push("A"+i);
-  for(let j=0;j<nB;j++) if(mutB[j].length===0) zero.push("B"+j);
-  return {mutA,mutB,zero};
+  // Priority 1: mutual picks — non-negotiable, always included
+  for(let i=0;i<nA;i++) for(const j of S.picksA[i]){
+    if(S.picksB[j] && S.picksB[j].includes(i)) add(i,j);
+  }
+  if(isFinite(target)){
+    // Priority 2: fill from a person's own picks, round-robin by rank so everyone's
+    // 1st choice gets a shot before anyone's 2nd choice — fairer than resolving one
+    // person's whole list before moving to the next.
+    for(let rank=0; rank<target; rank++){
+      for(let i=0;i<nA;i++){ if(cntA[i]<target && rank<S.picksA[i].length) add(i, S.picksA[i][rank]); }
+      for(let j=0;j<nB;j++){ if(cntB[j]<target && rank<S.picksB[j].length) add(S.picksB[j][rank], j); }
+    }
+    // Priority 3: fill from people who picked them, ordered by how highly THAT
+    // person ranked them (their 1st choice takes priority over their 4th).
+    for(let i=0;i<nA;i++){
+      if(cntA[i]>=target) continue;
+      const cands=[]; for(let j=0;j<nB;j++){ const r=S.picksB[j].indexOf(i); if(r>=0) cands.push({j,r}); }
+      cands.sort((x,y)=>x.r-y.r);
+      for(const c of cands){ if(cntA[i]>=target) break; if(cntB[c.j]<target) add(i,c.j); }
+    }
+    for(let j=0;j<nB;j++){
+      if(cntB[j]>=target) continue;
+      const cands=[]; for(let i=0;i<nA;i++){ const r=S.picksA[i].indexOf(j); if(r>=0) cands.push({i,r}); }
+      cands.sort((x,y)=>x.r-y.r);
+      for(const c of cands){ if(cntB[j]>=target) break; if(cntA[c.i]<target) add(c.i,j); }
+    }
+  }
+  const zero=[]; // people still short of target — priority 4, host fills manually
+  for(let i=0;i<nA;i++) if(cntA[i]<(isFinite(target)?target:1)) zero.push("A"+i);
+  for(let j=0;j<nB;j++) if(cntB[j]<(isFinite(target)?target:1)) zero.push("B"+j);
+  return {mutA,mutB,zero,cntA,cntB,target};
 }
 const keySide=(k)=> k[0];
 const keyIdx=(k)=> +k.slice(1);
-function isAssignTarget(key){ return Object.values(S.assign).includes(key); }
-function resolved(key){ return !!S.rest[key] || !!S.assign[key] || isAssignTarget(key); }
+function isAssignTarget(key){
+  const isA=keySide(key)==="A", idx=keyIdx(key);
+  return S.assign.some(e=> isA? e.a===idx : e.b===idx);
+}
+function assignCountFor(key){
+  const isA=keySide(key)==="A", idx=keyIdx(key);
+  return S.assign.filter(e=> isA? e.a===idx : e.b===idx).length;
+}
+function resolved(key, need){
+  if(S.rest[key]) return true;
+  return assignCountFor(key) >= (need!=null?need:1);
+}
 
 function buildStage2(){
-  const {mutA,zero}=computeMatches();
+  const {mutA,zero,cntA,cntB,target}=computeMatches();
+  const needOf=(key)=>{
+    const isA=keySide(key)==="A", idx=keyIdx(key);
+    const have = isA? cntA[idx] : cntB[idx];
+    return isFinite(target) ? Math.max(0,target-have) : (have>0?0:1);
+  };
   const edges=[];
   const seen=new Set();
   for(let i=0;i<mutA.length;i++) for(const j of mutA[i]){
     const id="A"+i+"-B"+j; if(seen.has(id))continue; seen.add(id); edges.push({a:i,b:j});
   }
-  for(const key in S.assign){
-    const p=S.assign[key]; if(!p) continue;
-    let ai,bj;
-    if(keySide(key)==="A"){ ai=keyIdx(key); bj=keyIdx(p); } else { bj=keyIdx(key); ai=keyIdx(p); }
-    const id="A"+ai+"-B"+bj; if(seen.has(id))continue; seen.add(id); edges.push({a:ai,b:bj});
+  for(const e of S.assign){
+    const id="A"+e.a+"-B"+e.b; if(seen.has(id))continue; seen.add(id); edges.push({a:e.a,b:e.b});
   }
   const active=edges.slice(); // every mutual or assigned pair must be seated
   active.sort((x,y)=> x.a-y.a || x.b-y.b);
@@ -365,8 +424,8 @@ function buildStage2(){
   const partSet=new Set(); active.forEach(e=>{ partSet.add("A"+e.a); partSet.add("B"+e.b); });
   const restingKeys=Object.keys(S.rest).filter(k=>S.rest[k] && !partSet.has(k));
   const roster=new Set([...partSet, ...restingKeys]);
-  const unresolved=zero.filter(k=>!resolved(k));
-  return {rounds,restingKeys,roster:[...roster],unresolved,zero,hasMatches:active.length>0,participants:[...partSet]};
+  const unresolved=zero.filter(k=>!resolved(k,needOf(k)));
+  return {rounds,restingKeys,roster:[...roster],unresolved,zero,needOf,hasMatches:active.length>0,participants:[...partSet]};
 }
 
 /* =============================== actions =============================== */
@@ -421,7 +480,21 @@ window.togglePick=(side,pi,oi,limit)=>{
   save(); render();
 };
 window.toggleRest=(key,v)=>{ if(v) S.rest[key]=true; else delete S.rest[key]; save(); render(); };
-window.setAssign=(key,v)=>{ if(v) S.assign[key]=v; else delete S.assign[key]; save(); render(); };
+window.addAssign=(key,target)=>{
+  if(!target) return;
+  const isA=keySide(key)==="A";
+  const a = isA? keyIdx(key) : keyIdx(target);
+  const b = isA? keyIdx(target) : keyIdx(key);
+  if(!S.assign.some(e=>e.a===a&&e.b===b)) S.assign.push({a,b});
+  save(); render();
+};
+window.removeAssign=(key,target)=>{
+  const isA=keySide(key)==="A";
+  const a = isA? keyIdx(key) : keyIdx(target);
+  const b = isA? keyIdx(target) : keyIdx(key);
+  S.assign = S.assign.filter(e=>!(e.a===a&&e.b===b));
+  save(); render();
+};
 
 /* =============================== timer =============================== */
 function stageSecs(){ return phase==="stage2"? S.stage2secs : S.stage1secs; }
@@ -932,19 +1005,25 @@ function matchesView(){
       ${attention.map(key=>{
         const isA=keySide(key)==="A", idx=keyIdx(key);
         const others=isA?S.namesB:S.namesA;
-        const suggIdx = s2.zero.filter(k=>keySide(k)!==keySide(key)).map(keyIdx);
-        const resting=!!S.rest[key], assigned=S.assign[key]||"";
-        const targeted=isAssignTarget(key);
+        const need = s2.needOf(key);
+        const stillShort = s2.zero.filter(k=>keySide(k)!==keySide(key));
+        const resting=!!S.rest[key];
+        const myAssigns = S.assign.filter(e=> isA? e.a===idx : e.b===idx).map(e=> isA? "B"+e.b : "A"+e.a);
+        const remaining = Math.max(0, need - myAssigns.length);
+        const takenIdx = new Set([...(isA?mutA[idx]:mutB[idx]), ...myAssigns.map(keyIdx)]);
         return `<div class="card" style="padding:12px">
           <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div style="font-weight:700;color:${isA?"var(--accent)":"var(--b)"}">${esc(nameOf(isA?"A":"B",idx))}
-              ${targeted?`<span class="muted" style="font-weight:500;font-size:12px">· ${esc(t("withPerson"))} ✓</span>`:""}</div>
+              <span class="muted" style="font-weight:500;font-size:12px">· ${resting?esc(t("restStage")):`${esc(t("needsMore")).replace("{n}",remaining)}`}</span></div>
             <label class="row" style="gap:6px;font-size:13px;color:var(--soft);cursor:pointer"><input type="checkbox" ${resting?"checked":""} onchange="toggleRest('${key}',this.checked)"> ${esc(t("restStage"))}</label>
           </div>
-          ${resting?"":`<select class="field" style="margin-top:8px" onchange="setAssign('${key}',this.value)">
-            <option value="">${esc(t("assign"))}</option>
-            ${others.map((_,oi)=>{ const okey=(isA?"B":"A")+oi; const sug=suggIdx.includes(oi); return `<option value="${okey}" ${assigned===okey?"selected":""}>${esc(nameOf(isA?"B":"A",oi))}${sug?" · "+t("suggest"):""}</option>`; }).join("")}
-          </select>`}
+          ${myAssigns.length?`<div class="row wrap" style="gap:6px;margin-top:8px">
+            ${myAssigns.map(t2=>`<span class="chip on" style="cursor:pointer" onclick="removeAssign('${key}','${t2}')">${esc(nameOf(keySide(t2),keyIdx(t2)))} ×</span>`).join("")}
+          </div>`:""}
+          ${(!resting && remaining>0)?`<select class="field" style="margin-top:8px" onchange="addAssign('${key}',this.value); this.selectedIndex=0;">
+            <option value="">${esc(t("assign"))} (${remaining})</option>
+            ${others.map((_,oi)=>{ if(takenIdx.has(oi)) return ""; const okey=(isA?"B":"A")+oi; const sug=stillShort.includes(okey); return `<option value="${okey}">${esc(nameOf(isA?"B":"A",oi))}${sug?" · "+t("suggest"):""}</option>`; }).join("")}
+          </select>`:""}
         </div>`;
       }).join("")}
     </div>`:""}
